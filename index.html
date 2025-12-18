@@ -41,11 +41,11 @@
         <a href="#">Character Builder</a>
     </div>
     <div id="map-container">
-        <div class="loading" id="loading">Loading map tiles...</div>
+        <div class="loading" id="loading">Initializing map...</div>
         <canvas id="map-canvas"></canvas>
     </div>
     <script>
-        console.log('=== Gloria Victis Interactive Map ===');
+        console.log('=== Gloria Victis Interactive Map (Lazy Loading) ===');
         
         var TILE_SIZE = 256;
         var areas = ['Main', 'GC1', 'ArenaTournament'];
@@ -55,121 +55,194 @@
         var minX = 0, maxX = 20;
         var minY = 0, maxY = 17;
         
+        // Track loaded tiles
+        var loadedTiles = {}; // key: "x,y,area" -> Image object
+        var loadingTiles = {}; // key: "x,y,area" -> true if loading
+        
+        var canvas, ctx;
+        var mapWidthPx, mapHeightPx;
+        
         function initializeMap() {
             // Calculate map dimensions
-            var mapWidthTiles = maxX - minX + 1;  // 21 tiles (0-20)
-            var mapHeightTiles = maxY - minY + 1; // 18 tiles (0-17)
-            var mapWidthPx = mapWidthTiles * TILE_SIZE;  // 21 * 256 = 5376px
-            var mapHeightPx = mapHeightTiles * TILE_SIZE; // 18 * 256 = 4608px
+            var mapWidthTiles = maxX - minX + 1;
+            var mapHeightTiles = maxY - minY + 1;
+            mapWidthPx = mapWidthTiles * TILE_SIZE;
+            mapHeightPx = mapHeightTiles * TILE_SIZE;
             
-            console.log('=== Map Initialization ===');
-            console.log('Tile range: X[' + minX + ' to ' + maxX + '] (' + mapWidthTiles + ' tiles)');
-            console.log('Tile range: Y[' + minY + ' to ' + maxY + '] (' + mapHeightTiles + ' tiles)');
-            console.log('Canvas size: ' + mapWidthPx + 'x' + mapHeightPx + ' pixels');
+            console.log('Map size: ' + mapWidthTiles + 'x' + mapHeightTiles + ' tiles (' + mapWidthPx + 'x' + mapHeightPx + 'px)');
             
-            var canvas = document.getElementById('map-canvas');
-            var ctx = canvas.getContext('2d');
+            canvas = document.getElementById('map-canvas');
+            ctx = canvas.getContext('2d');
             
-            // Set canvas size
             canvas.width = mapWidthPx;
             canvas.height = mapHeightPx;
-            
-            console.log('Canvas dimensions: ' + canvas.width + 'x' + canvas.height);
             
             // Fill background
             ctx.fillStyle = '#1a1a1a';
             ctx.fillRect(0, 0, mapWidthPx, mapHeightPx);
             
-            var loadedTiles = 0;
-            var failedTiles = 0;
-            var allLoaded = 0;
+            loadingDiv.style.display = 'none';
             
-            // Build list of ALL tiles to try loading
+            // Load initial viewport tiles
+            loadVisibleTiles();
+            
+            // Setup scroll listener to load tiles as user pans
+            var container = document.getElementById('map-container');
+            var scrollTimeout;
+            container.addEventListener('scroll', function() {
+                clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(loadVisibleTiles, 100);
+            });
+            
+            setupControls(canvas);
+            
+            // Center view
+            container.scrollLeft = mapWidthPx / 2 - container.clientWidth / 2;
+            container.scrollTop = mapHeightPx / 2 - container.clientHeight / 2;
+            
+            console.log('Map initialized - lazy loading enabled');
+        }
+        
+        // Get visible tile range based on viewport
+        function getVisibleTileRange() {
+            var container = document.getElementById('map-container');
+            var scrollLeft = container.scrollLeft;
+            var scrollTop = container.scrollTop;
+            var viewWidth = container.clientWidth;
+            var viewHeight = container.clientHeight;
+            
+            // Add padding to load tiles slightly outside viewport
+            var padding = 512; // 2 tiles worth
+            
+            var startX = Math.max(minX, Math.floor((scrollLeft - padding) / TILE_SIZE));
+            var endX = Math.min(maxX, Math.floor((scrollLeft + viewWidth + padding) / TILE_SIZE));
+            var startY = Math.max(minY, Math.floor((scrollTop - padding) / TILE_SIZE));
+            var endY = Math.min(maxY, Math.floor((scrollTop + viewHeight + padding) / TILE_SIZE));
+            
+            return {
+                startX: startX,
+                endX: endX,
+                startY: startY,
+                endY: endY
+            };
+        }
+        
+        // Load tiles visible in viewport
+        function loadVisibleTiles() {
+            var range = getVisibleTileRange();
             var tilesToLoad = [];
-            for (var y = minY; y <= maxY; y++) {
-                for (var x = minX; x <= maxX; x++) {
+            var tilesLoaded = 0;
+            var tilesLoading = 0;
+            
+            // Check which tiles need to be loaded
+            for (var y = range.startY; y <= range.endY; y++) {
+                for (var x = range.startX; x <= range.endX; x++) {
+                    // Only load Main area initially for faster loading
+                    // Other areas can be loaded on demand
                     areas.forEach(function(area) {
-                        tilesToLoad.push({x: x, y: y, area: area});
+                        var key = x + ',' + y + ',' + area;
+                        
+                        if (!loadedTiles[key] && !loadingTiles[key]) {
+                            tilesToLoad.push({x: x, y: y, area: area, key: key});
+                        } else if (loadedTiles[key]) {
+                            tilesLoaded++;
+                        }
                     });
                 }
             }
             
-            var totalToLoad = tilesToLoad.length;
-            console.log('Total tiles to attempt loading: ' + totalToLoad + ' (' + mapWidthTiles * mapHeightTiles + ' positions × ' + areas.length + ' areas)');
-            
-            // Load a tile
-            function loadTile(x, y, area, callback) {
-                var img = new Image();
-                var tilePath = '/GVmaptiles/x' + x + 'y' + y + '_' + area + '.png';
+            if (tilesToLoad.length > 0) {
+                console.log('Loading ' + tilesToLoad.length + ' visible tiles (viewport: ' + range.startX + ',' + range.startY + ' to ' + range.endX + ',' + range.endY + ')');
                 
-                img.onload = function() {
-                    // Convert tile coordinate to canvas pixel position
-                    var px = x * TILE_SIZE;
-                    var py = y * TILE_SIZE;
-                    
-                    // Draw the tile
-                    ctx.drawImage(img, px, py);
-                    
-                    callback(true);
-                };
-                
-                img.onerror = function() {
-                    // Tile doesn't exist - that's OK, not all positions have all areas
-                    callback(false);
-                };
-                
-                img.src = tilePath;
+                // Update loading message
+                if (tilesLoaded === 0 && tilesToLoad.length > 10) {
+                    loadingDiv.style.display = 'block';
+                    loadingDiv.textContent = 'Loading visible tiles... ' + tilesToLoad.length;
+                }
             }
             
-            // Load all tiles
-            console.log('Starting to load ' + tilesToLoad.length + ' tiles...');
+            // Load tiles in small batches
+            var batchSize = 5;
+            var currentIndex = 0;
             
-            tilesToLoad.forEach(function(tile, index) {
-                // Small delay to avoid overwhelming the browser
-                setTimeout(function() {
-                    loadTile(tile.x, tile.y, tile.area, function(success) {
-                        allLoaded++;
-                        if (success) {
-                            loadedTiles++;
-                        } else {
-                            failedTiles++;
-                        }
-                        
-                        var percent = Math.round((allLoaded / totalToLoad) * 100);
-                        loadingDiv.textContent = 'Loading map tiles... ' + percent + '% (' + loadedTiles + ' loaded, ' + failedTiles + ' missing)';
-                        
-                        if (allLoaded >= totalToLoad) {
-                            loadingDiv.style.display = 'none';
-                            console.log('=== Map Load Complete ===');
-                            console.log('Successfully loaded: ' + loadedTiles + ' tiles');
-                            console.log('Failed to load: ' + failedTiles + ' tiles (these positions don\'t have this area)');
-                            console.log('Canvas size: ' + canvas.width + 'x' + canvas.height);
-                            
-                            // Center the view on the middle of the map
-                            var container = document.getElementById('map-container');
-                            var centerX = mapWidthPx / 2;
-                            var centerY = mapHeightPx / 2;
-                            
-                            container.scrollLeft = centerX - container.clientWidth / 2;
-                            container.scrollTop = centerY - container.clientHeight / 2;
-                            
-                            console.log('Centered view on map center [' + centerX + ', ' + centerY + ']');
-                            
-                            // Log some statistics
-                            var positionsWithTiles = {};
-                            tilesToLoad.forEach(function(t) {
-                                if (t.area === 'Main') {
-                                    var posKey = t.x + ',' + t.y;
-                                    positionsWithTiles[posKey] = true;
-                                }
-                            });
-                            console.log('Tile positions with Main area: ' + Object.keys(positionsWithTiles).length);
+            function loadBatch() {
+                var end = Math.min(currentIndex + batchSize, tilesToLoad.length);
+                
+                for (var i = currentIndex; i < end; i++) {
+                    var tile = tilesToLoad[i];
+                    loadTile(tile.x, tile.y, tile.area, tile.key);
+                }
+                
+                currentIndex = end;
+                
+                if (end < tilesToLoad.length) {
+                    setTimeout(loadBatch, 50);
+                } else {
+                    loadingDiv.style.display = 'none';
+                }
+            }
+            
+            if (tilesToLoad.length > 0) {
+                loadBatch();
+            } else {
+                loadingDiv.style.display = 'none';
+            }
+        }
+        
+        // Load a single tile
+        function loadTile(x, y, area, key) {
+            if (loadingTiles[key]) return; // Already loading
+            
+            loadingTiles[key] = true;
+            var img = new Image();
+            var tilePath = '/GVmaptiles/x' + x + 'y' + y + '_' + area + '.png';
+            
+            img.onload = function() {
+                loadedTiles[key] = img;
+                delete loadingTiles[key];
+                
+                // Draw the tile immediately
+                var px = x * TILE_SIZE;
+                var py = y * TILE_SIZE;
+                ctx.drawImage(img, px, py);
+            };
+            
+            img.onerror = function() {
+                // Tile doesn't exist - mark as loaded (null) so we don't keep trying
+                loadedTiles[key] = null;
+                delete loadingTiles[key];
+            };
+            
+            img.src = tilePath;
+        }
+        
+        // Redraw visible tiles (for when canvas needs refresh)
+        function redrawVisibleTiles() {
+            var range = getVisibleTileRange();
+            
+            // Clear visible area
+            var startX = range.startX * TILE_SIZE;
+            var startY = range.startY * TILE_SIZE;
+            var endX = (range.endX + 1) * TILE_SIZE;
+            var endY = (range.endY + 1) * TILE_SIZE;
+            
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(startX, startY, endX - startX, endY - startY);
+            
+            // Redraw loaded tiles in visible area
+            for (var y = range.startY; y <= range.endY; y++) {
+                for (var x = range.startX; x <= range.endX; x++) {
+                    areas.forEach(function(area) {
+                        var key = x + ',' + y + ',' + area;
+                        var img = loadedTiles[key];
+                        if (img) {
+                            var px = x * TILE_SIZE;
+                            var py = y * TILE_SIZE;
+                            ctx.drawImage(img, px, py);
                         }
                     });
-                }, index * 2); // 2ms delay between each tile load
-            });
-            
-            setupControls(canvas);
+                }
+            }
         }
         
         function setupControls(canvas) {
@@ -183,6 +256,9 @@
                 scale = Math.max(0.5, Math.min(3, scale * delta));
                 canvas.style.transform = 'scale(' + scale + ')';
                 canvas.style.transformOrigin = 'top left';
+                
+                // Load tiles for new zoom level
+                setTimeout(loadVisibleTiles, 100);
             });
             
             // Pan with mouse drag
@@ -217,9 +293,9 @@
             });
         }
         
-        // Start loading immediately - no discovery phase
+        // Initialize
         initializeMap();
-        console.log('=== Map Initialized ===');
+        console.log('=== Map Initialized (Lazy Loading) ===');
     </script>
 </body>
 </html>
