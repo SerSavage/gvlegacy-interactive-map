@@ -51,15 +51,14 @@
         var areas = ['Main', 'GC1', 'ArenaTournament'];
         var loadingDiv = document.getElementById('loading');
         
-        // Discover coordinates
+        // Discover coordinates - test from -10 to +10 to cover the map
         var tileCoords = new Set();
         var minX = Infinity, maxX = -Infinity;
         var minY = Infinity, maxY = -Infinity;
         var discoveredTiles = {};
         var imagesLoaded = 0;
-        var imagesTested = 0;
         
-        // Test if a tile exists by loading it
+        // Test if a tile exists
         function testTile(x, y, area, callback) {
             var img = new Image();
             var tilePath = '/GVmaptiles/x' + x + 'y' + y + '_' + area + '.png';
@@ -88,17 +87,14 @@
             img.src = tilePath;
         }
         
-        // Discover tiles in a range
+        // Discover tiles
         function discoverTiles() {
             loadingDiv.textContent = 'Discovering map tiles...';
             
-            // Test range: -5 to 25 (should cover all tiles)
-            var testRangeX = {min: -5, max: 25};
-            var testRangeY = {min: -5, max: 25};
-            
+            // Test range: -10 to +10 (should cover -7 to +7)
             var allTests = [];
-            for (var y = testRangeY.min; y <= testRangeY.max; y++) {
-                for (var x = testRangeX.min; x <= testRangeX.max; x++) {
+            for (var y = -10; y <= 10; y++) {
+                for (var x = -10; x <= 10; x++) {
                     areas.forEach(function(area) {
                         allTests.push({x: x, y: y, area: area});
                     });
@@ -107,7 +103,7 @@
             
             var totalTests = allTests.length;
             var completed = 0;
-            var batchSize = 20;
+            var batchSize = 30;
             var currentIndex = 0;
             
             function processBatch() {
@@ -121,22 +117,28 @@
                         loadingDiv.textContent = 'Discovering map tiles... ' + percent + '% (' + imagesLoaded + ' found)';
                         
                         if (completed >= totalTests) {
-                            // Wait a bit for any pending loads
                             setTimeout(function() {
                                 console.log('Discovery complete!');
                                 console.log('X range: ' + minX + ' to ' + maxX);
                                 console.log('Y range: ' + minY + ' to ' + maxY);
                                 console.log('Found ' + tileCoords.size + ' unique tile positions');
-                                console.log('Total images loaded: ' + imagesLoaded);
                                 
                                 if (tileCoords.size === 0) {
-                                    console.warn('No tiles found! Trying fallback...');
-                                    // Fallback: try known coordinates
-                                    tryKnownCoordinates();
+                                    console.warn('No tiles found in discovery, trying direct load...');
+                                    // Try direct load with known range
+                                    minX = -7; maxX = 7;
+                                    minY = -7; maxY = 7;
+                                    tileCoords.clear();
+                                    for (var y = -7; y <= 7; y++) {
+                                        for (var x = -7; x <= 7; x++) {
+                                            tileCoords.add(x + ',' + y);
+                                        }
+                                    }
+                                    initializeMap();
                                 } else {
                                     initializeMap();
                                 }
-                            }, 1000);
+                            }, 500);
                         }
                     });
                 }
@@ -150,42 +152,6 @@
             processBatch();
         }
         
-        // Fallback: try known coordinate ranges
-        function tryKnownCoordinates() {
-            console.log('Trying fallback coordinates...');
-            loadingDiv.textContent = 'Trying fallback coordinates...';
-            
-            // Based on earlier checks, tiles are 0-20 for X, 0-17 for Y
-            var fallbackTests = [];
-            for (var y = 0; y <= 17; y++) {
-                for (var x = 0; x <= 20; x++) {
-                    areas.forEach(function(area) {
-                        fallbackTests.push({x: x, y: y, area: area});
-                    });
-                }
-            }
-            
-            var completed = 0;
-            var total = fallbackTests.length;
-            
-            fallbackTests.forEach(function(test) {
-                testTile(test.x, test.y, test.area, function(success) {
-                    completed++;
-                    if (completed >= total) {
-                        setTimeout(function() {
-                            if (tileCoords.size > 0) {
-                                console.log('Fallback found tiles!');
-                                initializeMap();
-                            } else {
-                                console.error('Fallback also failed!');
-                                loadingDiv.textContent = 'Error: Could not load map tiles. Check browser console.';
-                            }
-                        }, 500);
-                    }
-                });
-            });
-        }
-        
         function initializeMap() {
             if (minX === Infinity || maxX === -Infinity || tileCoords.size === 0) {
                 console.error('No tiles discovered!');
@@ -194,6 +160,7 @@
             }
             
             // Calculate map dimensions
+            // If minX is -7 and maxX is 7, width is 7 - (-7) + 1 = 15 tiles
             var mapWidthTiles = maxX - minX + 1;
             var mapHeightTiles = maxY - minY + 1;
             var mapWidthPx = mapWidthTiles * TILE_SIZE;
@@ -201,7 +168,7 @@
             
             console.log('Map dimensions: ' + mapWidthTiles + 'x' + mapHeightTiles + ' tiles');
             console.log('Pixel dimensions: ' + mapWidthPx + 'x' + mapHeightPx);
-            console.log('Offset: X=' + minX + ', Y=' + minY);
+            console.log('Coordinate range: X[' + minX + ' to ' + maxX + '], Y[' + minY + ' to ' + maxY + ']');
             
             var canvas = document.getElementById('map-canvas');
             var ctx = canvas.getContext('2d');
@@ -220,45 +187,50 @@
             // Count total tiles to load
             var totalToLoad = 0;
             tileCoords.forEach(function(coordKey) {
-                var existingAreas = discoveredTiles[coordKey] || [];
+                var existingAreas = discoveredTiles[coordKey] || areas;
                 totalToLoad += existingAreas.length;
             });
             
-            console.log('Total tiles to load: ' + totalToLoad);
-            
+            // If no discovered tiles, try all areas for all coordinates
             if (totalToLoad === 0) {
-                console.error('No tiles to load!');
-                loadingDiv.textContent = 'Error: No tiles found';
-                return;
+                totalToLoad = tileCoords.size * areas.length;
             }
             
-            // Load all discovered tiles
+            console.log('Total tiles to load: ' + totalToLoad);
+            
+            // Load all tiles
             function loadTile(x, y, area, callback) {
                 var img = new Image();
                 var tilePath = '/GVmaptiles/x' + x + 'y' + y + '_' + area + '.png';
                 
                 img.onload = function() {
+                    // CRITICAL: Convert tile coordinates to canvas pixel coordinates
+                    // If minX is -7, then tile -7 should be at pixel 0
+                    // Tile 0 should be at pixel (0 - (-7)) * 256 = 7 * 256 = 1792
+                    // Tile 7 should be at pixel (7 - (-7)) * 256 = 14 * 256 = 3584
                     var px = (x - minX) * TILE_SIZE;
                     var py = (y - minY) * TILE_SIZE;
+                    
+                    console.log('Loading tile x' + x + 'y' + y + '_' + area + ' at canvas position [' + px + ', ' + py + ']');
                     ctx.drawImage(img, px, py);
                     callback(true);
                 };
                 
                 img.onerror = function() {
-                    console.warn('Failed to load: ' + tilePath);
                     callback(false);
                 };
                 
                 img.src = tilePath;
             }
             
-            // Load tiles for each discovered coordinate
+            // Load tiles for each coordinate
             tileCoords.forEach(function(coordKey) {
                 var parts = coordKey.split(',');
                 var x = parseInt(parts[0]);
                 var y = parseInt(parts[1]);
                 
-                var existingAreas = discoveredTiles[coordKey] || [];
+                // Try all areas for this coordinate
+                var existingAreas = discoveredTiles[coordKey] || areas;
                 existingAreas.forEach(function(area) {
                     loadTile(x, y, area, function(success) {
                         allLoaded++;
@@ -276,10 +248,16 @@
                             console.log('Map loaded! ' + loadedTiles + ' tiles loaded, ' + failedTiles + ' missing');
                             console.log('Map is ready!');
                             
-                            // Center the view
+                            // Center the view on coordinate (0, 0)
                             var container = document.getElementById('map-container');
-                            container.scrollLeft = (mapWidthPx - container.clientWidth) / 2;
-                            container.scrollTop = (mapHeightPx - container.clientHeight) / 2;
+                            // Find pixel position of coordinate (0, 0)
+                            var centerX = (0 - minX) * TILE_SIZE;
+                            var centerY = (0 - minY) * TILE_SIZE;
+                            // Scroll to center (0,0) in the viewport
+                            container.scrollLeft = centerX - container.clientWidth / 2;
+                            container.scrollTop = centerY - container.clientHeight / 2;
+                            
+                            console.log('Centered view on (0,0) at pixel [' + centerX + ', ' + centerY + ']');
                         }
                     });
                 });
