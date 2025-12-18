@@ -135,9 +135,11 @@
                 loadingCount--;
                 loadedCount++;
                 
-                // Calculate position: x increases right, y increases down
+                // Calculate position: x increases right
+                // Y might need to be inverted (y0 at bottom instead of top)
                 var px = x * TILE_SIZE;
-                var py = y * TILE_SIZE;
+                // Try inverted Y: maxY - y instead of y
+                var py = (maxY - y) * TILE_SIZE;
                 
                 if (debug) {
                     console.log('Loaded x' + x + 'y' + y + ' at pixel [' + px + ', ' + py + ']');
