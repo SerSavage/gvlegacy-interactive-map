@@ -11,22 +11,22 @@
         .topmenu a { color: #fff; text-decoration: none; margin: 0 15px; }
         .topmenu a:hover { color: #ffff00; }
         #map-container { 
-            width: 100%; 
+        width: 100%;
             height: calc(100vh - 50px); 
             background: #1a1a1a; 
             overflow: auto;
-            position: relative;
+    position: relative;
         }
         #map-canvas {
-            display: block;
+      display: block;
             background: #1a1a1a;
         }
         .loading {
-            position: absolute;
-            top: 50%;
+      position: absolute;
+    top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            color: #fff;
+    color: #fff;
             font-size: 18px;
             z-index: 100;
         }
@@ -51,14 +51,14 @@
         var areas = ['Main', 'GC1', 'ArenaTournament'];
         var loadingDiv = document.getElementById('loading');
         
-        // Known coordinate range: -7 to +7 (based on user info)
-        var minX = -7, maxX = 7;
-        var minY = -7, maxY = 7;
+        // Stoneholm map coordinates: x0y0 to x20y17
+        var minX = 0, maxX = 20;
+        var minY = 0, maxY = 17;
         
         // Track which tiles actually exist
         var existingTiles = {}; // key: "x,y,area" -> true if exists
         
-        // First, discover which tiles actually exist
+        // Discover which tiles exist
         function discoverExistingTiles() {
             loadingDiv.textContent = 'Discovering existing tiles...';
             
@@ -74,7 +74,7 @@
             var totalTests = allTests.length;
             var completed = 0;
             var found = 0;
-            var batchSize = 30;
+            var batchSize = 50;
             var currentIndex = 0;
             
             function testTile(x, y, area) {
@@ -91,7 +91,7 @@
                     // Tile doesn't exist - that's OK
                 };
                 
-                // Always complete the test
+                // Complete the test after a short delay
                 setTimeout(function() {
                     completed++;
                     var percent = Math.round((completed / totalTests) * 100);
@@ -105,7 +105,7 @@
                             initializeMap();
                         }, 500);
                     }
-                }, 50);
+                }, 30);
                 
                 img.src = tilePath;
             }
@@ -120,7 +120,7 @@
                 
                 currentIndex = end;
                 if (end < allTests.length) {
-                    setTimeout(processBatch, 20);
+                    setTimeout(processBatch, 10);
                 }
             }
             
@@ -129,10 +129,10 @@
         
         function initializeMap() {
             // Calculate map dimensions
-            var mapWidthTiles = maxX - minX + 1;
-            var mapHeightTiles = maxY - minY + 1;
-            var mapWidthPx = mapWidthTiles * TILE_SIZE;
-            var mapHeightPx = mapHeightTiles * TILE_SIZE;
+            var mapWidthTiles = maxX - minX + 1;  // 21 tiles (0-20)
+            var mapHeightTiles = maxY - minY + 1; // 18 tiles (0-17)
+            var mapWidthPx = mapWidthTiles * TILE_SIZE;  // 21 * 256 = 5376px
+            var mapHeightPx = mapHeightTiles * TILE_SIZE; // 18 * 256 = 4608px
             
             console.log('=== Map Initialization ===');
             console.log('Tile range: X[' + minX + ' to ' + maxX + '] (' + mapWidthTiles + ' tiles)');
@@ -160,12 +160,12 @@
             console.log('Total tiles to load: ' + totalToLoad);
             
             if (totalToLoad === 0) {
-                console.warn('No tiles found! Trying to load all possible tiles...');
-                // Fallback: try loading all tiles
+                console.warn('No tiles found in discovery! Trying to load all possible tiles...');
+                // Fallback: try loading all tiles in range
                 totalToLoad = mapWidthTiles * mapHeightTiles * areas.length;
             }
             
-            // Load all tiles
+            // Load a tile
             function loadTile(x, y, area, callback) {
                 var img = new Image();
                 var tilePath = '/GVmaptiles/x' + x + 'y' + y + '_' + area + '.png';
@@ -173,13 +173,16 @@
                 
                 img.onload = function() {
                     // Convert tile coordinate to canvas pixel position
-                    var px = (x - minX) * TILE_SIZE;
-                    var py = (y - minY) * TILE_SIZE;
+                    // x0y0 should be at pixel (0, 0)
+                    // x1y0 should be at pixel (256, 0)
+                    // x0y1 should be at pixel (0, 256)
+                    var px = (x - minX) * TILE_SIZE; // Since minX = 0, this is just x * 256
+                    var py = (y - minY) * TILE_SIZE; // Since minY = 0, this is just y * 256
                     
                     // Draw the tile
                     ctx.drawImage(img, px, py);
                     
-                    if (loadedTiles % 50 === 0) {
+                    if (loadedTiles % 100 === 0) {
                         console.log('Loaded tile x' + x + 'y' + y + '_' + area + ' at [' + px + ', ' + py + ']');
                     }
                     
@@ -193,16 +196,15 @@
                 img.src = tilePath;
             }
             
-            // Load all tiles in the range
-            console.log('Starting to load tiles...');
+            // Build list of tiles to load
             var tilesToLoad = [];
             
-            // Build list of tiles to load
+            // Load all tiles in the range
             for (var y = minY; y <= maxY; y++) {
                 for (var x = minX; x <= maxX; x++) {
                     areas.forEach(function(area) {
                         var key = x + ',' + y + ',' + area;
-                        // Only load if we discovered it exists, or if discovery found nothing (load all)
+                        // Load if we discovered it exists, or if discovery found nothing (load all)
                         if (totalToLoad === 0 || existingTiles[key]) {
                             tilesToLoad.push({x: x, y: y, area: area});
                         }
@@ -213,10 +215,10 @@
             console.log('Loading ' + tilesToLoad.length + ' tiles...');
             totalToLoad = tilesToLoad.length;
             
-            // Load tiles with a small delay between batches to avoid overwhelming
+            // Load tiles with batching to avoid overwhelming
             var loadIndex = 0;
             function loadNextBatch() {
-                var batchEnd = Math.min(loadIndex + 10, tilesToLoad.length);
+                var batchEnd = Math.min(loadIndex + 15, tilesToLoad.length);
                 
                 for (var i = loadIndex; i < batchEnd; i++) {
                     var tile = tilesToLoad[i];
@@ -238,23 +240,23 @@
                             console.log('Failed to load: ' + failedTiles + ' tiles');
                             console.log('Canvas size: ' + canvas.width + 'x' + canvas.height);
                             
-                            // Center the view on coordinate (0, 0)
+                            // Center the view on the middle of the map
                             var container = document.getElementById('map-container');
-                            var centerX = (0 - minX) * TILE_SIZE;
-                            var centerY = (0 - minY) * TILE_SIZE;
+                            var centerX = (mapWidthPx / 2);
+                            var centerY = (mapHeightPx / 2);
                             
                             container.scrollLeft = centerX - container.clientWidth / 2;
                             container.scrollTop = centerY - container.clientHeight / 2;
                             
-                            console.log('Centered view on (0,0)');
-                            console.log('(0,0) is at pixel [' + centerX + ', ' + centerY + ']');
+                            console.log('Centered view on map center');
+                            console.log('Map center is at pixel [' + centerX + ', ' + centerY + ']');
                         }
                     });
                 }
                 
                 loadIndex = batchEnd;
                 if (loadIndex < tilesToLoad.length) {
-                    setTimeout(loadNextBatch, 50);
+                    setTimeout(loadNextBatch, 30);
                 }
             }
             
@@ -311,5 +313,5 @@
         discoverExistingTiles();
         console.log('=== Map Initialized ===');
     </script>
-</body>
+  </body>
 </html>
