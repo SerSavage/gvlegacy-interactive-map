@@ -11,22 +11,22 @@
         .topmenu a { color: #fff; text-decoration: none; margin: 0 15px; }
         .topmenu a:hover { color: #ffff00; }
         #map-container { 
-        width: 100%;
+            width: 100%; 
             height: calc(100vh - 50px); 
             background: #1a1a1a; 
             overflow: auto;
-    position: relative;
+            position: relative;
         }
         #map-canvas {
-      display: block;
+            display: block;
             background: #1a1a1a;
         }
         .loading {
-      position: absolute;
-    top: 50%;
+            position: absolute;
+            top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-    color: #fff;
+            color: #fff;
             font-size: 18px;
             z-index: 100;
         }
@@ -48,7 +48,7 @@
         console.log('=== Gloria Victis Interactive Map ===');
         
         var TILE_SIZE = 256;
-        var areas = ['Main']; // Only load Main layer - other layers cause issues
+        var areas = ['Main'];
         var loadingDiv = document.getElementById('loading');
         
         // Map coordinates: x0y0 to x20y17
@@ -57,20 +57,23 @@
         
         var canvas, ctx;
         var mapWidthPx, mapHeightPx;
-        var loadedTiles = {}; // key: "x,y,area" -> Image
+        var loadedTiles = {};
         var loadingCount = 0;
         var totalToLoad = 0;
         var loadedCount = 0;
         var failedCount = 0;
+        var sampleTiles = []; // Track first few tiles for debugging
         
         function initializeMap() {
-            // Calculate dimensions
             var mapWidthTiles = maxX - minX + 1;  // 21
             var mapHeightTiles = maxY - minY + 1; // 18
             mapWidthPx = mapWidthTiles * TILE_SIZE;
             mapHeightPx = mapHeightTiles * TILE_SIZE;
             
-            console.log('Map: ' + mapWidthTiles + 'x' + mapHeightTiles + ' tiles = ' + mapWidthPx + 'x' + mapHeightPx + 'px');
+            console.log('=== Map Setup ===');
+            console.log('Tile range: X[' + minX + ' to ' + maxX + '], Y[' + minY + ' to ' + maxY + ']');
+            console.log('Map size: ' + mapWidthTiles + 'x' + mapHeightTiles + ' tiles');
+            console.log('Canvas size: ' + mapWidthPx + 'x' + mapHeightPx + ' pixels');
             
             canvas = document.getElementById('map-canvas');
             ctx = canvas.getContext('2d');
@@ -94,9 +97,9 @@
         }
         
         function loadAllTiles() {
-            // Build list of all tiles to load
             var tilesToLoad = [];
             
+            // Load tiles in order: row by row, left to right
             for (var y = minY; y <= maxY; y++) {
                 for (var x = minX; x <= maxX; x++) {
                     areas.forEach(function(area) {
@@ -106,20 +109,21 @@
             }
             
             totalToLoad = tilesToLoad.length;
-            console.log('Loading ' + totalToLoad + ' tiles...');
+            console.log('Total tiles to load: ' + totalToLoad);
+            console.log('First tile: x' + tilesToLoad[0].x + 'y' + tilesToLoad[0].y);
+            console.log('Last tile: x' + tilesToLoad[tilesToLoad.length - 1].x + 'y' + tilesToLoad[tilesToLoad.length - 1].y);
             
-            // Load tiles with delay to avoid overwhelming
+            // Load tiles
             tilesToLoad.forEach(function(tile, index) {
                 setTimeout(function() {
-                    loadTile(tile.x, tile.y, tile.area);
-                }, index * 3); // 3ms delay between each
+                    loadTile(tile.x, tile.y, tile.area, index < 5); // Log first 5
+                }, index * 2);
             });
         }
         
-        function loadTile(x, y, area) {
+        function loadTile(x, y, area, debug) {
             var key = x + ',' + y + ',' + area;
             
-            // Skip if already loaded or loading
             if (loadedTiles[key] !== undefined) return;
             
             loadingCount++;
@@ -131,19 +135,29 @@
                 loadingCount--;
                 loadedCount++;
                 
-                // Draw tile immediately at correct position
+                // Calculate position: x increases right, y increases down
                 var px = x * TILE_SIZE;
                 var py = y * TILE_SIZE;
+                
+                if (debug) {
+                    console.log('Loaded x' + x + 'y' + y + ' at pixel [' + px + ', ' + py + ']');
+                }
+                
+                // Draw tile
                 ctx.drawImage(img, px, py);
                 
                 updateProgress();
             };
             
             img.onerror = function() {
-                // Mark as failed (null) so we don't retry
                 loadedTiles[key] = null;
                 loadingCount--;
                 failedCount++;
+                
+                if (debug) {
+                    console.warn('Failed to load: ' + tilePath);
+                }
+                
                 updateProgress();
             };
             
@@ -159,9 +173,10 @@
             if (total >= totalToLoad && loadingCount === 0) {
                 loadingDiv.style.display = 'none';
                 console.log('=== Loading Complete ===');
-                console.log('Loaded: ' + loadedCount + ' tiles');
-                console.log('Missing: ' + failedCount + ' tiles');
-                console.log('Canvas: ' + canvas.width + 'x' + canvas.height);
+                console.log('Successfully loaded: ' + loadedCount + ' tiles');
+                console.log('Failed to load: ' + failedCount + ' tiles');
+                console.log('Canvas size: ' + canvas.width + 'x' + canvas.height);
+                console.log('Check the map - if tiles are misaligned, check console for position info');
             }
         }
         
@@ -169,7 +184,6 @@
             var scale = 1;
             var container = document.getElementById('map-container');
             
-            // Zoom
             container.addEventListener('wheel', function(e) {
                 e.preventDefault();
                 var delta = e.deltaY > 0 ? 0.9 : 1.1;
@@ -178,7 +192,6 @@
                 canvas.style.transformOrigin = 'top left';
             });
             
-            // Pan
             var isDragging = false;
             var startX, startY, scrollLeft, scrollTop;
             
@@ -210,9 +223,8 @@
             });
         }
         
-        // Initialize
         initializeMap();
         console.log('Map initialized');
     </script>
-  </body>
+</body>
 </html>
