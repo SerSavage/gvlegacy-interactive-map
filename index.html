@@ -51,9 +51,9 @@
         var areas = ['Main', 'GC1', 'ArenaTournament'];
         var loadingDiv = document.getElementById('loading');
         
-        // Stoneholm map coordinates: x0y1 to x20y15
+        // Stoneholm map coordinates: x0y0 to x20y17
         var minX = 0, maxX = 20;
-        var minY = 1, maxY = 15;  // Y starts at 1, not 0!
+        var minY = 0, maxY = 17;
         
         // Track loaded tiles
         var loadedTiles = {}; // key: "x,y,area" -> Image object
@@ -65,9 +65,9 @@
         function initializeMap() {
             // Calculate map dimensions
             var mapWidthTiles = maxX - minX + 1;  // 21 tiles (0-20)
-            var mapHeightTiles = maxY - minY + 1; // 15 tiles (1-15)
+            var mapHeightTiles = maxY - minY + 1; // 18 tiles (0-17)
             mapWidthPx = mapWidthTiles * TILE_SIZE;  // 21 * 256 = 5376px
-            mapHeightPx = mapHeightTiles * TILE_SIZE; // 15 * 256 = 3840px
+            mapHeightPx = mapHeightTiles * TILE_SIZE; // 18 * 256 = 4608px
             
             console.log('=== Map Initialization ===');
             console.log('Tile range: X[' + minX + ' to ' + maxX + '] (' + mapWidthTiles + ' tiles)');
@@ -204,9 +204,8 @@
                 delete loadingTiles[key];
                 
                 // Draw the tile at correct position
-                // Since Y starts at 1, we need to offset: (y - minY) * TILE_SIZE
                 var px = (x - minX) * TILE_SIZE; // x * 256 (since minX = 0)
-                var py = (y - minY) * TILE_SIZE; // (y - 1) * 256 (since minY = 1)
+                var py = (y - minY) * TILE_SIZE; // y * 256 (since minY = 0)
                 
                 ctx.drawImage(img, px, py);
             };
