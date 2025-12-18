@@ -1,0 +1,13 @@
+# Render Blueprint for Gloria Victis Interactive Map
+services:
+  - type: web
+    name: gv-interactive-map
+    env: static
+    buildCommand: echo "No build needed for static site"
+    staticPublishPath: .
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+

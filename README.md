@@ -12,7 +12,21 @@ Interactive map for Gloria Victis game, featuring the main world, guild castles,
 
 ## 🚀 Usage
 
-Visit the [GitHub Pages site](https://sersavage.github.io/gvlegacy-interactive-map/) or open `index.html` locally.
+Visit the [Render site](https://gv-interactive-map.onrender.com/) or open `index.html` locally.
+
+## 🚀 Deploy to Render
+
+1. Push this repository to GitHub
+2. Go to [Render Dashboard](https://dashboard.render.com)
+3. Click "New +" → "Static Site"
+4. Connect your GitHub repository
+5. Set:
+   - **Name**: `gv-interactive-map` (or your choice)
+   - **Build Command**: (leave empty)
+   - **Publish Directory**: `.` (root)
+6. Click "Create Static Site"
+7. Wait for deployment (takes ~2 minutes)
+8. Your map will be live at: `https://your-app-name.onrender.com`
 
 ## 📁 Map Structure
 

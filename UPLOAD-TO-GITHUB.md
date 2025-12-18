@@ -46,3 +46,4 @@ After upload, check that:
 If tiles don't show after upload, check browser console (F12) for errors.
 The map should work in all browsers when hosted on GitHub Pages!
 
+
