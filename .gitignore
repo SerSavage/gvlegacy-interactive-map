@@ -12,7 +12,3 @@ desktop.ini
 # Temporary files
 *.tmp
 *.log
-
-# Cleanup script
-cleanup.bat
-
