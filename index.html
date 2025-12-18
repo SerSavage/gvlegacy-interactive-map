@@ -62,7 +62,7 @@
         var totalToLoad = 0;
         var loadedCount = 0;
         var failedCount = 0;
-        var sampleTiles = []; // Track first few tiles for debugging
+        var drawnTiles = {}; // Track which tiles have been drawn
         
         function initializeMap() {
             var mapWidthTiles = maxX - minX + 1;  // 21
@@ -113,11 +113,15 @@
             console.log('First tile: x' + tilesToLoad[0].x + 'y' + tilesToLoad[0].y);
             console.log('Last tile: x' + tilesToLoad[tilesToLoad.length - 1].x + 'y' + tilesToLoad[tilesToLoad.length - 1].y);
             
-            // Load tiles
+            // Load tiles with priority on corners and edges for debugging
             tilesToLoad.forEach(function(tile, index) {
+                var isCorner = (tile.x === minX || tile.x === maxX) && (tile.y === minY || tile.y === maxY);
+                var isEdge = (tile.x === minX || tile.x === maxX || tile.y === minY || tile.y === maxY);
+                var delay = isCorner ? index * 1 : (isEdge ? index * 2 : index * 3);
+                
                 setTimeout(function() {
-                    loadTile(tile.x, tile.y, tile.area, index < 5); // Log first 5
-                }, index * 2);
+                    loadTile(tile.x, tile.y, tile.area, isCorner || isEdge);
+                }, delay);
             });
         }
         
@@ -135,18 +139,26 @@
                 loadingCount--;
                 loadedCount++;
                 
-                // Calculate position: x increases right
-                // Y might need to be inverted (y0 at bottom instead of top)
+                // Y axis inverted: y0 at bottom, y17 at top
                 var px = x * TILE_SIZE;
-                // Try inverted Y: maxY - y instead of y
                 var py = (maxY - y) * TILE_SIZE;
                 
-                if (debug) {
-                    console.log('Loaded x' + x + 'y' + y + ' at pixel [' + px + ', ' + py + ']');
+                // Ensure we don't draw outside canvas
+                if (px >= 0 && px < mapWidthPx && py >= 0 && py < mapHeightPx) {
+                    // Clear any existing content at this position (in case of overlap)
+                    ctx.fillStyle = '#1a1a1a';
+                    ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                    
+                    // Draw tile
+                    ctx.drawImage(img, px, py);
+                    drawnTiles[key] = true;
+                    
+                    if (debug) {
+                        console.log('Drawn x' + x + 'y' + y + ' at pixel [' + px + ', ' + py + ']');
+                    }
+                } else {
+                    console.warn('Tile x' + x + 'y' + y + ' would be drawn outside canvas at [' + px + ', ' + py + ']');
                 }
-                
-                // Draw tile
-                ctx.drawImage(img, px, py);
                 
                 updateProgress();
             };
@@ -177,8 +189,14 @@
                 console.log('=== Loading Complete ===');
                 console.log('Successfully loaded: ' + loadedCount + ' tiles');
                 console.log('Failed to load: ' + failedCount + ' tiles');
+                console.log('Tiles drawn: ' + Object.keys(drawnTiles).length);
                 console.log('Canvas size: ' + canvas.width + 'x' + canvas.height);
-                console.log('Check the map - if tiles are misaligned, check console for position info');
+                
+                // Check for missing tiles
+                var expectedTiles = (maxX - minX + 1) * (maxY - minY + 1);
+                if (loadedCount < expectedTiles) {
+                    console.warn('Expected ' + expectedTiles + ' tiles but only loaded ' + loadedCount);
+                }
             }
         }
         
