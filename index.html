@@ -4,14 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gloria Victis Interactive Map</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: Arial, sans-serif; background: #000; color: #fff; overflow: hidden; }
         .topmenu { background: #333; padding: 10px; text-align: center; z-index: 1000; position: relative; }
         .topmenu a { color: #fff; text-decoration: none; margin: 0 15px; }
         .topmenu a:hover { color: #ffff00; }
-        #gv-map { width: 100%; height: calc(100vh - 50px); background: #1a1a1a; }
+        #map-container { 
+            width: 100%; 
+            height: calc(100vh - 50px); 
+            background: #1a1a1a; 
+            overflow: auto;
+            position: relative;
+        }
+        #map-canvas {
+            display: block;
+            background: #1a1a1a;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 18px;
+            z-index: 100;
+        }
     </style>
 </head>
 <body>
@@ -22,10 +40,12 @@
         <a href="#">Workshop</a>
         <a href="#">Character Builder</a>
     </div>
-    <div id="gv-map"></div>
-    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <div id="map-container">
+        <div class="loading" id="loading">Loading map tiles...</div>
+        <canvas id="map-canvas"></canvas>
+    </div>
     <script>
-        console.log('=== Gloria Victis Map Initialization ===');
+        console.log('=== Gloria Victis Interactive Map ===');
         
         var TILE_SIZE = 256;
         var MAP_WIDTH_TILES = 21;
@@ -33,110 +53,119 @@
         var MAP_WIDTH_PX = MAP_WIDTH_TILES * TILE_SIZE;
         var MAP_HEIGHT_PX = MAP_HEIGHT_TILES * TILE_SIZE;
         
+        var canvas = document.getElementById('map-canvas');
+        var ctx = canvas.getContext('2d');
+        var loadingDiv = document.getElementById('loading');
+        
+        // Set canvas size
+        canvas.width = MAP_WIDTH_PX;
+        canvas.height = MAP_HEIGHT_PX;
+        
         console.log('Map dimensions: ' + MAP_WIDTH_TILES + 'x' + MAP_HEIGHT_TILES + ' tiles');
         console.log('Pixel dimensions: ' + MAP_WIDTH_PX + 'x' + MAP_HEIGHT_PX);
         
-        var map = L.map('gv-map', {
-            crs: L.CRS.Simple,
-            minZoom: 0,
-            maxZoom: 2
-        });
+        // Fill background
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(0, 0, MAP_WIDTH_PX, MAP_HEIGHT_PX);
         
-        // Custom tile layer
-        var GVTileLayer = L.TileLayer.extend({
-            initialize: function(options) {
-                this.areas = ['Main', 'GC1', 'ArenaTournament'];
-                L.TileLayer.prototype.initialize.call(this, '', options);
-            },
+        var areas = ['Main', 'GC1', 'ArenaTournament'];
+        var totalTiles = MAP_WIDTH_TILES * MAP_HEIGHT_TILES;
+        var loadedTiles = 0;
+        var failedTiles = 0;
+        
+        // Load all tiles
+        function loadTile(x, y, area, callback) {
+            var img = new Image();
+            var tilePath = '/GVmaptiles/x' + x + 'y' + y + '_' + area + '.png';
             
-            createTile: function(coords, done) {
-                var tile = document.createElement('canvas');
-                tile.width = TILE_SIZE;
-                tile.height = TILE_SIZE;
-                var ctx = tile.getContext('2d');
-                
-                // Fill with dark background first
-                ctx.fillStyle = '#1a1a1a';
-                ctx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
-                
-                // coords.x and coords.y are already tile coordinates (0, 1, 2, etc.)
-                var tileX = coords.x;
-                var tileY = coords.y;
-                
-                // Validate
-                if (tileX < 0 || tileX >= MAP_WIDTH_TILES || tileY < 0 || tileY >= MAP_HEIGHT_TILES) {
-                    done(null, tile);
-                    return tile;
-                }
-                
-                var areas = this.areas;
-                var loaded = 0;
-                var total = areas.length;
-                var hasAnyImage = false;
-                
-                var checkComplete = function() {
-                    loaded++;
-                    if (loaded >= total) {
-                        if (!hasAnyImage) {
-                            // Draw a small indicator if no tiles found
-                            ctx.fillStyle = '#333';
-                            ctx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
-                            ctx.fillStyle = '#666';
-                            ctx.font = '12px Arial';
-                            ctx.fillText('x' + tileX + 'y' + tileY, 10, 20);
-                        }
-                        done(null, tile);
-                    }
-                };
-                
-                // Load tiles
+            img.onload = function() {
+                // Draw at correct position
+                var px = x * TILE_SIZE;
+                var py = y * TILE_SIZE;
+                ctx.drawImage(img, px, py);
+                callback(true);
+            };
+            
+            img.onerror = function() {
+                callback(false);
+            };
+            
+            img.src = tilePath;
+        }
+        
+        // Load all tiles for all areas
+        var allLoaded = 0;
+        var totalToLoad = totalTiles * areas.length;
+        
+        for (var y = 0; y < MAP_HEIGHT_TILES; y++) {
+            for (var x = 0; x < MAP_WIDTH_TILES; x++) {
                 areas.forEach(function(area) {
-                    var img = new Image();
-                    // Use absolute path for Render hosting
-                    var tilePath = '/GVmaptiles/x' + tileX + 'y' + tileY + '_' + area + '.png';
-                    
-                    img.onload = function() {
-                        console.log('✓ Loaded: ' + tilePath);
-                        ctx.drawImage(img, 0, 0);
-                        hasAnyImage = true;
-                        checkComplete();
-                    };
-                    
-                    img.onerror = function() {
-                        // Tile doesn't exist for this area
-                        console.log('✗ Missing: ' + tilePath);
-                        checkComplete();
-                    };
-                    
-                    // Try loading the tile
-                    img.src = tilePath;
+                    loadTile(x, y, area, function(success) {
+                        allLoaded++;
+                        if (success) {
+                            loadedTiles++;
+                        } else {
+                            failedTiles++;
+                        }
+                        
+                        // Update loading message
+                        var percent = Math.round((allLoaded / totalToLoad) * 100);
+                        loadingDiv.textContent = 'Loading map tiles... ' + percent + '% (' + loadedTiles + ' loaded)';
+                        
+                        if (allLoaded >= totalToLoad) {
+                            loadingDiv.style.display = 'none';
+                            console.log('Map loaded! ' + loadedTiles + ' tiles loaded, ' + failedTiles + ' missing');
+                            console.log('Map is ready!');
+                        }
+                    });
                 });
-                
-                return tile;
             }
+        }
+        
+        // Zoom with mouse wheel
+        var scale = 1;
+        var container = document.getElementById('map-container');
+        
+        container.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            var delta = e.deltaY > 0 ? 0.9 : 1.1;
+            scale = Math.max(0.5, Math.min(3, scale * delta));
+            canvas.style.transform = 'scale(' + scale + ')';
+            canvas.style.transformOrigin = 'top left';
         });
         
-        var mapLayer = new GVTileLayer({
-            minZoom: 0,
-            maxZoom: 2,
-            tileSize: TILE_SIZE,
-            noWrap: true,
-            attribution: 'Gloria Victis Map'
+        // Pan with mouse drag
+        var isDragging = false;
+        var startX, startY, scrollLeft, scrollTop;
+        
+        container.addEventListener('mousedown', function(e) {
+            isDragging = true;
+            startX = e.pageX - container.offsetLeft;
+            startY = e.pageY - container.offsetTop;
+            scrollLeft = container.scrollLeft;
+            scrollTop = container.scrollTop;
         });
         
-        mapLayer.addTo(map);
+        container.addEventListener('mouseleave', function() {
+            isDragging = false;
+        });
         
-        // Set view to center
-        var centerY = MAP_HEIGHT_PX / 2;
-        var centerX = MAP_WIDTH_PX / 2;
-        map.setView([centerY, centerX], 0);
+        container.addEventListener('mouseup', function() {
+            isDragging = false;
+        });
         
-        // Set bounds
-        map.setMaxBounds(L.latLngBounds([0, 0], [MAP_HEIGHT_PX, MAP_WIDTH_PX]));
+        container.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+            var x = e.pageX - container.offsetLeft;
+            var y = e.pageY - container.offsetTop;
+            var walkX = (x - startX) * 2;
+            var walkY = (y - startY) * 2;
+            container.scrollLeft = scrollLeft - walkX;
+            container.scrollTop = scrollTop - walkY;
+        });
         
-        console.log('Map view set to center: [' + centerY + ', ' + centerX + ']');
         console.log('=== Map Initialized ===');
-        console.log('Open browser console (F12) to see tile loading messages');
     </script>
 </body>
 </html>
