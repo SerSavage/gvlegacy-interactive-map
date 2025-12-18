@@ -41,65 +41,167 @@
         <a href="#">Character Builder</a>
     </div>
     <div id="map-container">
-        <div class="loading" id="loading">Loading map tiles...</div>
+        <div class="loading" id="loading">Scanning map tiles...</div>
         <canvas id="map-canvas"></canvas>
     </div>
     <script>
         console.log('=== Gloria Victis Interactive Map ===');
         
         var TILE_SIZE = 256;
-        var MAP_WIDTH_TILES = 21;
-        var MAP_HEIGHT_TILES = 18;
-        var MAP_WIDTH_PX = MAP_WIDTH_TILES * TILE_SIZE;
-        var MAP_HEIGHT_PX = MAP_HEIGHT_TILES * TILE_SIZE;
-        
-        var canvas = document.getElementById('map-canvas');
-        var ctx = canvas.getContext('2d');
+        var areas = ['Main', 'GC1', 'ArenaTournament'];
         var loadingDiv = document.getElementById('loading');
         
-        // Set canvas size
-        canvas.width = MAP_WIDTH_PX;
-        canvas.height = MAP_HEIGHT_PX;
+        // First, discover all tile coordinates by trying to load them
+        var tileCoords = new Set();
+        var minX = Infinity, maxX = -Infinity;
+        var minY = Infinity, maxY = -Infinity;
+        var discoveredTiles = {};
         
-        console.log('Map dimensions: ' + MAP_WIDTH_TILES + 'x' + MAP_HEIGHT_TILES + ' tiles');
-        console.log('Pixel dimensions: ' + MAP_WIDTH_PX + 'x' + MAP_HEIGHT_PX);
-        
-        // Fill background
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(0, 0, MAP_WIDTH_PX, MAP_HEIGHT_PX);
-        
-        var areas = ['Main', 'GC1', 'ArenaTournament'];
-        var totalTiles = MAP_WIDTH_TILES * MAP_HEIGHT_TILES;
-        var loadedTiles = 0;
-        var failedTiles = 0;
-        
-        // Load all tiles
-        function loadTile(x, y, area, callback) {
-            var img = new Image();
-            var tilePath = '/GVmaptiles/x' + x + 'y' + y + '_' + area + '.png';
+        // Test a wide range to find actual coordinates
+        // Try from -30 to 30 for both X and Y to cover negative coordinates
+        function discoverTiles() {
+            loadingDiv.textContent = 'Discovering map tiles...';
+            var testRange = 30;
+            var tested = 0;
+            var totalTests = (testRange * 2 + 1) * (testRange * 2 + 1) * areas.length;
+            var batchSize = 100; // Test tiles in batches to avoid overwhelming
+            var currentBatch = 0;
             
-            img.onload = function() {
-                // Draw at correct position
-                var px = x * TILE_SIZE;
-                var py = y * TILE_SIZE;
-                ctx.drawImage(img, px, py);
-                callback(true);
-            };
+            function testTile(x, y, area) {
+                var img = new Image();
+                var tilePath = '/GVmaptiles/x' + x + 'y' + y + '_' + area + '.png';
+                
+                img.onload = function() {
+                    // Tile exists!
+                    var key = x + ',' + y;
+                    if (!tileCoords.has(key)) {
+                        tileCoords.add(key);
+                        minX = Math.min(minX, x);
+                        maxX = Math.max(maxX, x);
+                        minY = Math.min(minY, y);
+                        maxY = Math.max(maxY, y);
+                    }
+                    // Store which areas exist for this coordinate
+                    if (!discoveredTiles[key]) {
+                        discoveredTiles[key] = [];
+                    }
+                    discoveredTiles[key].push(area);
+                    tested++;
+                    checkComplete();
+                };
+                
+                img.onerror = function() {
+                    tested++;
+                    checkComplete();
+                };
+                
+                img.src = tilePath;
+            }
             
-            img.onerror = function() {
-                callback(false);
-            };
+            function checkComplete() {
+                var percent = Math.round((tested / totalTests) * 100);
+                loadingDiv.textContent = 'Discovering map tiles... ' + percent + '%';
+                
+                if (tested >= totalTests) {
+                    console.log('Tile discovery complete!');
+                    console.log('X range: ' + minX + ' to ' + maxX);
+                    console.log('Y range: ' + minY + ' to ' + maxY);
+                    console.log('Found ' + tileCoords.size + ' unique tile positions');
+                    initializeMap();
+                }
+            }
             
-            img.src = tilePath;
+            // Test all combinations (async to avoid blocking)
+            var allTests = [];
+            for (var y = -testRange; y <= testRange; y++) {
+                for (var x = -testRange; x <= testRange; x++) {
+                    areas.forEach(function(area) {
+                        allTests.push({x: x, y: y, area: area});
+                    });
+                }
+            }
+            
+            // Process in batches
+            function processBatch() {
+                var start = currentBatch * batchSize;
+                var end = Math.min(start + batchSize, allTests.length);
+                
+                for (var i = start; i < end; i++) {
+                    var test = allTests[i];
+                    testTile(test.x, test.y, test.area);
+                }
+                
+                currentBatch++;
+                if (end < allTests.length) {
+                    setTimeout(processBatch, 10); // Small delay between batches
+                }
+            }
+            
+            processBatch();
         }
         
-        // Load all tiles for all areas
-        var allLoaded = 0;
-        var totalToLoad = totalTiles * areas.length;
-        
-        for (var y = 0; y < MAP_HEIGHT_TILES; y++) {
-            for (var x = 0; x < MAP_WIDTH_TILES; x++) {
-                areas.forEach(function(area) {
+        function initializeMap() {
+            // Calculate map dimensions based on discovered coordinates
+            var mapWidthTiles = maxX - minX + 1;
+            var mapHeightTiles = maxY - minY + 1;
+            var mapWidthPx = mapWidthTiles * TILE_SIZE;
+            var mapHeightPx = mapHeightTiles * TILE_SIZE;
+            
+            console.log('Map dimensions: ' + mapWidthTiles + 'x' + mapHeightTiles + ' tiles');
+            console.log('Pixel dimensions: ' + mapWidthPx + 'x' + mapHeightPx);
+            console.log('Offset: X=' + minX + ', Y=' + minY);
+            
+            var canvas = document.getElementById('map-canvas');
+            var ctx = canvas.getContext('2d');
+            
+            // Set canvas size
+            canvas.width = mapWidthPx;
+            canvas.height = mapHeightPx;
+            
+            // Fill background
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, mapWidthPx, mapHeightPx);
+            
+            // Calculate offset to convert tile coordinates to canvas coordinates
+            // If minX is negative, we need to offset by -minX * TILE_SIZE
+            var offsetX = -minX * TILE_SIZE;
+            var offsetY = -minY * TILE_SIZE;
+            
+            var loadedTiles = 0;
+            var failedTiles = 0;
+            var allLoaded = 0;
+            var totalToLoad = tileCoords.size * areas.length;
+            
+            // Load all discovered tiles
+            function loadTile(x, y, area, callback) {
+                var img = new Image();
+                var tilePath = '/GVmaptiles/x' + x + 'y' + y + '_' + area + '.png';
+                
+                img.onload = function() {
+                    // Calculate canvas position: convert tile coords to pixel coords with offset
+                    var px = (x - minX) * TILE_SIZE;
+                    var py = (y - minY) * TILE_SIZE;
+                    
+                    ctx.drawImage(img, px, py);
+                    callback(true);
+                };
+                
+                img.onerror = function() {
+                    callback(false);
+                };
+                
+                img.src = tilePath;
+            }
+            
+            // Load tiles for each discovered coordinate
+            tileCoords.forEach(function(coordKey) {
+                var parts = coordKey.split(',');
+                var x = parseInt(parts[0]);
+                var y = parseInt(parts[1]);
+                
+                // Only load areas that we know exist for this coordinate
+                var existingAreas = discoveredTiles[coordKey] || areas;
+                existingAreas.forEach(function(area) {
                     loadTile(x, y, area, function(success) {
                         allLoaded++;
                         if (success) {
@@ -116,55 +218,67 @@
                             loadingDiv.style.display = 'none';
                             console.log('Map loaded! ' + loadedTiles + ' tiles loaded, ' + failedTiles + ' missing');
                             console.log('Map is ready!');
+                            
+                            // Center the view
+                            var container = document.getElementById('map-container');
+                            container.scrollLeft = (mapWidthPx - container.clientWidth) / 2;
+                            container.scrollTop = (mapHeightPx - container.clientHeight) / 2;
                         }
                     });
                 });
-            }
+            });
+            
+            // Setup zoom and pan
+            setupControls(canvas);
         }
         
-        // Zoom with mouse wheel
-        var scale = 1;
-        var container = document.getElementById('map-container');
+        function setupControls(canvas) {
+            var scale = 1;
+            var container = document.getElementById('map-container');
+            
+            // Zoom with mouse wheel
+            container.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                var delta = e.deltaY > 0 ? 0.9 : 1.1;
+                scale = Math.max(0.5, Math.min(3, scale * delta));
+                canvas.style.transform = 'scale(' + scale + ')';
+                canvas.style.transformOrigin = 'top left';
+            });
+            
+            // Pan with mouse drag
+            var isDragging = false;
+            var startX, startY, scrollLeft, scrollTop;
+            
+            container.addEventListener('mousedown', function(e) {
+                isDragging = true;
+                startX = e.pageX - container.offsetLeft;
+                startY = e.pageY - container.offsetTop;
+                scrollLeft = container.scrollLeft;
+                scrollTop = container.scrollTop;
+            });
+            
+            container.addEventListener('mouseleave', function() {
+                isDragging = false;
+            });
+            
+            container.addEventListener('mouseup', function() {
+                isDragging = false;
+            });
+            
+            container.addEventListener('mousemove', function(e) {
+                if (!isDragging) return;
+                e.preventDefault();
+                var x = e.pageX - container.offsetLeft;
+                var y = e.pageY - container.offsetTop;
+                var walkX = (x - startX) * 2;
+                var walkY = (y - startY) * 2;
+                container.scrollLeft = scrollLeft - walkX;
+                container.scrollTop = scrollTop - walkY;
+            });
+        }
         
-        container.addEventListener('wheel', function(e) {
-            e.preventDefault();
-            var delta = e.deltaY > 0 ? 0.9 : 1.1;
-            scale = Math.max(0.5, Math.min(3, scale * delta));
-            canvas.style.transform = 'scale(' + scale + ')';
-            canvas.style.transformOrigin = 'top left';
-        });
-        
-        // Pan with mouse drag
-        var isDragging = false;
-        var startX, startY, scrollLeft, scrollTop;
-        
-        container.addEventListener('mousedown', function(e) {
-            isDragging = true;
-            startX = e.pageX - container.offsetLeft;
-            startY = e.pageY - container.offsetTop;
-            scrollLeft = container.scrollLeft;
-            scrollTop = container.scrollTop;
-        });
-        
-        container.addEventListener('mouseleave', function() {
-            isDragging = false;
-        });
-        
-        container.addEventListener('mouseup', function() {
-            isDragging = false;
-        });
-        
-        container.addEventListener('mousemove', function(e) {
-            if (!isDragging) return;
-            e.preventDefault();
-            var x = e.pageX - container.offsetLeft;
-            var y = e.pageY - container.offsetTop;
-            var walkX = (x - startX) * 2;
-            var walkY = (y - startY) * 2;
-            container.scrollLeft = scrollLeft - walkX;
-            container.scrollTop = scrollTop - walkY;
-        });
-        
+        // Start discovery
+        discoverTiles();
         console.log('=== Map Initialized ===');
     </script>
 </body>
