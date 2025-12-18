@@ -63,6 +63,7 @@
         var loadedCount = 0;
         var failedCount = 0;
         var drawnTiles = {}; // Track which tiles have been drawn
+        var positionUsage = {}; // Track which tiles are drawn at each pixel position
         
         function initializeMap() {
             var mapWidthTiles = maxX - minX + 1;  // 21
@@ -135,12 +136,20 @@
                 loadingCount--;
                 loadedCount++;
                 
-                // Standard grid: x increases right, y increases down
-                var px = x * TILE_SIZE;
-                var py = y * TILE_SIZE;
+                // Invert both X and Y axes
+                var px = (maxX - x) * TILE_SIZE;
+                var py = (maxY - y) * TILE_SIZE;
                 
                 // Ensure we don't draw outside canvas
                 if (px >= 0 && px < mapWidthPx && py >= 0 && py < mapHeightPx) {
+                    // Check for duplicate positions
+                    var posKey = px + ',' + py;
+                    if (positionUsage[posKey]) {
+                        console.warn('DUPLICATE POSITION! x' + x + 'y' + y + ' at [' + px + ', ' + py + '] - already used by: ' + positionUsage[posKey]);
+                    } else {
+                        positionUsage[posKey] = 'x' + x + 'y' + y;
+                    }
+                    
                     // Draw tile directly
                     try {
                         ctx.drawImage(img, px, py);
