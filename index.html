@@ -59,9 +59,9 @@
                 ctx.fillStyle = '#1a1a1a';
                 ctx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
                 
-                // Calculate tile coordinates
-                var tileX = Math.floor(coords.x / TILE_SIZE);
-                var tileY = Math.floor(coords.y / TILE_SIZE);
+                // coords.x and coords.y are already tile coordinates (0, 1, 2, etc.)
+                var tileX = coords.x;
+                var tileY = coords.y;
                 
                 // Validate
                 if (tileX < 0 || tileX >= MAP_WIDTH_TILES || tileY < 0 || tileY >= MAP_HEIGHT_TILES) {
@@ -92,7 +92,8 @@
                 // Load tiles
                 areas.forEach(function(area) {
                     var img = new Image();
-                    var tilePath = 'GVmaptiles/x' + tileX + 'y' + tileY + '_' + area + '.png';
+                    // Use absolute path for Render hosting
+                    var tilePath = '/GVmaptiles/x' + tileX + 'y' + tileY + '_' + area + '.png';
                     
                     img.onload = function() {
                         console.log('✓ Loaded: ' + tilePath);
@@ -103,6 +104,7 @@
                     
                     img.onerror = function() {
                         // Tile doesn't exist for this area
+                        console.log('✗ Missing: ' + tilePath);
                         checkComplete();
                     };
                     
