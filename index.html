@@ -41,7 +41,7 @@
         <a href="#">Character Builder</a>
     </div>
     <div id="map-container">
-        <div class="loading" id="loading">Scanning map tiles...</div>
+        <div class="loading" id="loading">Loading map tiles...</div>
         <canvas id="map-canvas"></canvas>
     </div>
     <script>
@@ -51,28 +51,41 @@
         var areas = ['Main', 'GC1', 'ArenaTournament'];
         var loadingDiv = document.getElementById('loading');
         
-        // First, discover all tile coordinates by trying to load them
+        // Discover coordinates by testing a reasonable range
+        // Start with a smaller range and expand if needed
         var tileCoords = new Set();
         var minX = Infinity, maxX = -Infinity;
         var minY = Infinity, maxY = -Infinity;
         var discoveredTiles = {};
+        var discoveryComplete = false;
         
-        // Test a wide range to find actual coordinates
-        // Try from -30 to 30 for both X and Y to cover negative coordinates
+        // Smart discovery: test common ranges first
         function discoverTiles() {
             loadingDiv.textContent = 'Discovering map tiles...';
-            var testRange = 30;
+            
+            // Test range: -10 to 30 (covers most game maps)
+            var testRangeX = {min: -10, max: 30};
+            var testRangeY = {min: -10, max: 30};
+            
+            var allTests = [];
+            for (var y = testRangeY.min; y <= testRangeY.max; y++) {
+                for (var x = testRangeX.min; x <= testRangeX.max; x++) {
+                    areas.forEach(function(area) {
+                        allTests.push({x: x, y: y, area: area});
+                    });
+                }
+            }
+            
             var tested = 0;
-            var totalTests = (testRange * 2 + 1) * (testRange * 2 + 1) * areas.length;
-            var batchSize = 100; // Test tiles in batches to avoid overwhelming
-            var currentBatch = 0;
+            var totalTests = allTests.length;
+            var batchSize = 50; // Smaller batches for faster response
+            var currentIndex = 0;
             
             function testTile(x, y, area) {
                 var img = new Image();
                 var tilePath = '/GVmaptiles/x' + x + 'y' + y + '_' + area + '.png';
                 
                 img.onload = function() {
-                    // Tile exists!
                     var key = x + ',' + y;
                     if (!tileCoords.has(key)) {
                         tileCoords.add(key);
@@ -81,59 +94,45 @@
                         minY = Math.min(minY, y);
                         maxY = Math.max(maxY, y);
                     }
-                    // Store which areas exist for this coordinate
                     if (!discoveredTiles[key]) {
                         discoveredTiles[key] = [];
                     }
                     discoveredTiles[key].push(area);
-                    tested++;
-                    checkComplete();
                 };
                 
                 img.onerror = function() {
-                    tested++;
-                    checkComplete();
+                    // Tile doesn't exist - that's OK
                 };
                 
                 img.src = tilePath;
             }
             
-            function checkComplete() {
-                var percent = Math.round((tested / totalTests) * 100);
-                loadingDiv.textContent = 'Discovering map tiles... ' + percent + '%';
-                
-                if (tested >= totalTests) {
-                    console.log('Tile discovery complete!');
-                    console.log('X range: ' + minX + ' to ' + maxX);
-                    console.log('Y range: ' + minY + ' to ' + maxY);
-                    console.log('Found ' + tileCoords.size + ' unique tile positions');
-                    initializeMap();
-                }
-            }
-            
-            // Test all combinations (async to avoid blocking)
-            var allTests = [];
-            for (var y = -testRange; y <= testRange; y++) {
-                for (var x = -testRange; x <= testRange; x++) {
-                    areas.forEach(function(area) {
-                        allTests.push({x: x, y: y, area: area});
-                    });
-                }
-            }
-            
-            // Process in batches
             function processBatch() {
-                var start = currentBatch * batchSize;
-                var end = Math.min(start + batchSize, allTests.length);
+                var end = Math.min(currentIndex + batchSize, allTests.length);
                 
-                for (var i = start; i < end; i++) {
+                for (var i = currentIndex; i < end; i++) {
                     var test = allTests[i];
                     testTile(test.x, test.y, test.area);
                 }
                 
-                currentBatch++;
+                tested = end;
+                var percent = Math.round((tested / totalTests) * 100);
+                loadingDiv.textContent = 'Discovering map tiles... ' + percent + '%';
+                
+                currentIndex = end;
+                
                 if (end < allTests.length) {
-                    setTimeout(processBatch, 10); // Small delay between batches
+                    setTimeout(processBatch, 5); // Very short delay
+                } else {
+                    // Wait a bit for all images to load, then initialize
+                    setTimeout(function() {
+                        discoveryComplete = true;
+                        console.log('Tile discovery complete!');
+                        console.log('X range: ' + minX + ' to ' + maxX);
+                        console.log('Y range: ' + minY + ' to ' + maxY);
+                        console.log('Found ' + tileCoords.size + ' unique tile positions');
+                        initializeMap();
+                    }, 500);
                 }
             }
             
@@ -141,6 +140,12 @@
         }
         
         function initializeMap() {
+            if (minX === Infinity || maxX === -Infinity) {
+                console.error('No tiles discovered!');
+                loadingDiv.textContent = 'Error: No map tiles found';
+                return;
+            }
+            
             // Calculate map dimensions based on discovered coordinates
             var mapWidthTiles = maxX - minX + 1;
             var mapHeightTiles = maxY - minY + 1;
@@ -162,15 +167,24 @@
             ctx.fillStyle = '#1a1a1a';
             ctx.fillRect(0, 0, mapWidthPx, mapHeightPx);
             
-            // Calculate offset to convert tile coordinates to canvas coordinates
-            // If minX is negative, we need to offset by -minX * TILE_SIZE
-            var offsetX = -minX * TILE_SIZE;
-            var offsetY = -minY * TILE_SIZE;
-            
             var loadedTiles = 0;
             var failedTiles = 0;
             var allLoaded = 0;
-            var totalToLoad = tileCoords.size * areas.length;
+            
+            // Count total tiles to load (only tiles we discovered)
+            var totalToLoad = 0;
+            tileCoords.forEach(function(coordKey) {
+                var existingAreas = discoveredTiles[coordKey] || [];
+                totalToLoad += existingAreas.length;
+            });
+            
+            console.log('Total tiles to load: ' + totalToLoad);
+            
+            if (totalToLoad === 0) {
+                console.error('No tiles to load!');
+                loadingDiv.textContent = 'Error: No tiles found';
+                return;
+            }
             
             // Load all discovered tiles
             function loadTile(x, y, area, callback) {
@@ -178,7 +192,7 @@
                 var tilePath = '/GVmaptiles/x' + x + 'y' + y + '_' + area + '.png';
                 
                 img.onload = function() {
-                    // Calculate canvas position: convert tile coords to pixel coords with offset
+                    // Calculate canvas position: convert tile coords to pixel coords
                     var px = (x - minX) * TILE_SIZE;
                     var py = (y - minY) * TILE_SIZE;
                     
