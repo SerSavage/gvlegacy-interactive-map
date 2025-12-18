@@ -135,9 +135,9 @@
                 loadingCount--;
                 loadedCount++;
                 
-                // Y axis inverted: y0 at bottom, y17 at top
+                // Standard grid: x increases right, y increases down
                 var px = x * TILE_SIZE;
-                var py = (maxY - y) * TILE_SIZE;
+                var py = y * TILE_SIZE;
                 
                 // Ensure we don't draw outside canvas
                 if (px >= 0 && px < mapWidthPx && py >= 0 && py < mapHeightPx) {
