@@ -141,9 +141,13 @@
                 
                 // Ensure we don't draw outside canvas
                 if (px >= 0 && px < mapWidthPx && py >= 0 && py < mapHeightPx) {
-                    // Draw tile directly - no need to clear, tiles should fit perfectly
-                    ctx.drawImage(img, px, py);
-                    drawnTiles[key] = true;
+                    // Draw tile directly
+                    try {
+                        ctx.drawImage(img, px, py);
+                        drawnTiles[key] = true;
+                    } catch (e) {
+                        console.error('Error drawing tile x' + x + 'y' + y + ':', e);
+                    }
                 } else {
                     console.error('Tile x' + x + 'y' + y + ' OUT OF BOUNDS at [' + px + ', ' + py + '] (canvas: ' + mapWidthPx + 'x' + mapHeightPx + ')');
                 }
@@ -199,9 +203,22 @@
                     }
                 }
                 if (missingPositions.length > 0) {
-                    console.warn('Missing tile positions: ' + missingPositions.slice(0, 20).join(', ') + (missingPositions.length > 20 ? '...' : ''));
+                    console.error('MISSING ' + missingPositions.length + ' tile positions!');
+                    console.error('Missing: ' + missingPositions.slice(0, 50).join(', ') + (missingPositions.length > 50 ? '... (showing first 50)' : ''));
+                    
+                    // Group by row to see pattern
+                    var byRow = {};
+                    missingPositions.forEach(function(pos) {
+                        var match = pos.match(/x(\d+)y(\d+)/);
+                        if (match) {
+                            var row = match[2];
+                            if (!byRow[row]) byRow[row] = [];
+                            byRow[row].push(pos);
+                        }
+                    });
+                    console.error('Missing tiles by row:', byRow);
                 } else {
-                    console.log('All tile positions have been drawn!');
+                    console.log('✓ All 378 tile positions have been drawn!');
                 }
             }
         }
