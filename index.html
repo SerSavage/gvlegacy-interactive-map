@@ -11,22 +11,22 @@
         .topmenu a { color: #fff; text-decoration: none; margin: 0 15px; }
         .topmenu a:hover { color: #ffff00; }
         #map-container { 
-            width: 100%; 
+        width: 100%;
             height: calc(100vh - 50px); 
             background: #1a1a1a; 
             overflow: auto;
-            position: relative;
+    position: relative;
         }
         #map-canvas {
-            display: block;
+      display: block;
             background: #1a1a1a;
         }
         .loading {
-            position: absolute;
-            top: 50%;
+      position: absolute;
+    top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            color: #fff;
+    color: #fff;
             font-size: 18px;
             z-index: 100;
         }
@@ -113,15 +113,11 @@
             console.log('First tile: x' + tilesToLoad[0].x + 'y' + tilesToLoad[0].y);
             console.log('Last tile: x' + tilesToLoad[tilesToLoad.length - 1].x + 'y' + tilesToLoad[tilesToLoad.length - 1].y);
             
-            // Load tiles with priority on corners and edges for debugging
+            // Load all tiles - ensure proper order
             tilesToLoad.forEach(function(tile, index) {
-                var isCorner = (tile.x === minX || tile.x === maxX) && (tile.y === minY || tile.y === maxY);
-                var isEdge = (tile.x === minX || tile.x === maxX || tile.y === minY || tile.y === maxY);
-                var delay = isCorner ? index * 1 : (isEdge ? index * 2 : index * 3);
-                
                 setTimeout(function() {
-                    loadTile(tile.x, tile.y, tile.area, isCorner || isEdge);
-                }, delay);
+                    loadTile(tile.x, tile.y, tile.area, false);
+                }, index * 2);
             });
         }
         
@@ -145,19 +141,11 @@
                 
                 // Ensure we don't draw outside canvas
                 if (px >= 0 && px < mapWidthPx && py >= 0 && py < mapHeightPx) {
-                    // Clear any existing content at this position (in case of overlap)
-                    ctx.fillStyle = '#1a1a1a';
-                    ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-                    
-                    // Draw tile
+                    // Draw tile directly - no need to clear, tiles should fit perfectly
                     ctx.drawImage(img, px, py);
                     drawnTiles[key] = true;
-                    
-                    if (debug) {
-                        console.log('Drawn x' + x + 'y' + y + ' at pixel [' + px + ', ' + py + ']');
-                    }
                 } else {
-                    console.warn('Tile x' + x + 'y' + y + ' would be drawn outside canvas at [' + px + ', ' + py + ']');
+                    console.error('Tile x' + x + 'y' + y + ' OUT OF BOUNDS at [' + px + ', ' + py + '] (canvas: ' + mapWidthPx + 'x' + mapHeightPx + ')');
                 }
                 
                 updateProgress();
@@ -194,8 +182,26 @@
                 
                 // Check for missing tiles
                 var expectedTiles = (maxX - minX + 1) * (maxY - minY + 1);
+                console.log('Expected tiles: ' + expectedTiles);
+                
                 if (loadedCount < expectedTiles) {
-                    console.warn('Expected ' + expectedTiles + ' tiles but only loaded ' + loadedCount);
+                    console.warn('MISSING TILES: Expected ' + expectedTiles + ' but only loaded ' + loadedCount);
+                }
+                
+                // Check if all positions have tiles
+                var missingPositions = [];
+                for (var y = minY; y <= maxY; y++) {
+                    for (var x = minX; x <= maxX; x++) {
+                        var key = x + ',' + y + ',Main';
+                        if (!drawnTiles[key]) {
+                            missingPositions.push('x' + x + 'y' + y);
+                        }
+                    }
+                }
+                if (missingPositions.length > 0) {
+                    console.warn('Missing tile positions: ' + missingPositions.slice(0, 20).join(', ') + (missingPositions.length > 20 ? '...' : ''));
+                } else {
+                    console.log('All tile positions have been drawn!');
                 }
             }
         }
@@ -246,5 +252,5 @@
         initializeMap();
         console.log('Map initialized');
     </script>
-</body>
+  </body>
 </html>
