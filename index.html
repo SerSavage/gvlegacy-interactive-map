@@ -343,7 +343,27 @@
         }
         
         function drawZonesView() {
-            if (!zonesImage || !zonesImage.complete) return;
+            if (!zonesCanvas || !zonesCtx) {
+                console.error('Zones canvas not initialized');
+                return;
+            }
+            
+            if (!zonesImage) {
+                console.warn('Zones image not loaded yet');
+                return;
+            }
+            
+            // Check if image has dimensions (loaded)
+            if (zonesImage.width === 0 || zonesImage.height === 0) {
+                console.warn('Zones image has no dimensions, waiting for load...');
+                // Try again after a short delay
+                setTimeout(function() {
+                    if (zonesImage.width > 0 && zonesImage.height > 0) {
+                        drawZonesView();
+                    }
+                }, 100);
+                return;
+            }
             
             // Get zones image dimensions - use original size
             var imgWidth = zonesImage.width;
@@ -389,8 +409,25 @@
                 if (showZones) {
                     // Show zones canvas, hide map canvas
                     if (zonesCanvas) {
-                        drawZonesView();
-                        zonesCanvas.style.display = 'block';
+                        // Wait for image to load if not already loaded
+                        if (zonesImage && zonesImage.complete) {
+                            drawZonesView();
+                            zonesCanvas.style.display = 'block';
+                        } else if (zonesImage) {
+                            // Image is still loading, wait for it
+                            zonesImage.onload = function() {
+                                drawZonesView();
+                                zonesCanvas.style.display = 'block';
+                            };
+                            // If already loaded but complete wasn't true, try drawing anyway
+                            if (zonesImage.width > 0 && zonesImage.height > 0) {
+                                drawZonesView();
+                                zonesCanvas.style.display = 'block';
+                            }
+                        } else {
+                            // Image not loaded yet, show canvas anyway (will be empty until loaded)
+                            zonesCanvas.style.display = 'block';
+                        }
                     }
                     if (canvas) {
                         canvas.style.display = 'none';
