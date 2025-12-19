@@ -354,15 +354,40 @@
         }
         
         function drawZonesOverlay() {
-            if (!zonesImage || !showZones) return;
+            if (!zonesImage || !showZones || !zonesImage.complete) return;
             
             // Resize zones canvas to match map canvas
             zonesCanvas.width = mapWidthPx;
             zonesCanvas.height = mapHeightPx;
             
-            // Clear and draw zones image scaled to fit
+            // Clear canvas
             zonesCtx.clearRect(0, 0, mapWidthPx, mapHeightPx);
-            zonesCtx.drawImage(zonesImage, 0, 0, mapWidthPx, mapHeightPx);
+            
+            // Calculate scaling to fit the image to the map while maintaining aspect ratio
+            var imgWidth = zonesImage.width;
+            var imgHeight = zonesImage.height;
+            var scaleX = mapWidthPx / imgWidth;
+            var scaleY = mapHeightPx / imgHeight;
+            var scale = Math.min(scaleX, scaleY); // Use smaller scale to fit within bounds
+            
+            // Calculate scaled dimensions
+            var scaledWidth = imgWidth * scale;
+            var scaledHeight = imgHeight * scale;
+            
+            // Center the image
+            var x = (mapWidthPx - scaledWidth) / 2;
+            var y = (mapHeightPx - scaledHeight) / 2;
+            
+            // Draw the zones image scaled and centered
+            zonesCtx.drawImage(zonesImage, x, y, scaledWidth, scaledHeight);
+            
+            console.log('Zones overlay drawn:', {
+                imageSize: imgWidth + 'x' + imgHeight,
+                mapSize: mapWidthPx + 'x' + mapHeightPx,
+                scale: scale.toFixed(3),
+                scaledSize: scaledWidth.toFixed(0) + 'x' + scaledHeight.toFixed(0),
+                position: x.toFixed(0) + ', ' + y.toFixed(0)
+            });
         }
         
         function setupZonesToggle() {
