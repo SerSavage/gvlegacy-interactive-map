@@ -10,32 +10,51 @@
         .topmenu { background: #333; padding: 10px; text-align: center; z-index: 1000; position: relative; }
         .topmenu a { color: #fff; text-decoration: none; margin: 0 15px; }
         .topmenu a:hover { color: #ffff00; }
-        .layer-controls { 
-            background: #444; 
-            padding: 8px 15px; 
-    text-align: center;
-            border-top: 1px solid #555;
-        }
-        .layer-controls label { 
-    color: #fff;
-            margin: 0 20px; 
-    cursor: pointer;
-            font-size: 14px;
-        }
-        .layer-controls input[type="radio"] { 
-    margin-right: 5px;
-            cursor: pointer;
-        }
-        .layer-controls input[type="radio"]:checked + span {
-            color: #ffff00;
-            font-weight: bold;
-        }
         #map-container { 
         width: 100%;
             height: calc(100vh - 50px); 
             background: #1a1a1a; 
             overflow: auto;
     position: relative;
+        }
+        .layer-controls { 
+            position: fixed;
+            top: 60px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px;
+            border: 2px solid #555;
+            border-radius: 8px;
+            z-index: 1000;
+            min-width: 200px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+        .layer-controls h3 {
+            color: #ffff00;
+            margin-bottom: 10px;
+            font-size: 16px;
+            text-align: center;
+        }
+        .layer-controls label { 
+            display: block;
+            color: #fff;
+            margin: 8px 0; 
+            cursor: pointer;
+            font-size: 14px;
+            padding: 5px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .layer-controls label:hover {
+            background: rgba(255, 255, 0, 0.1);
+        }
+        .layer-controls input[type="radio"] { 
+            margin-right: 8px;
+            cursor: pointer;
+        }
+        .layer-controls input[type="radio"]:checked + span {
+            color: #ffff00;
+            font-weight: bold;
         }
         #map-canvas {
     display: block;
@@ -60,14 +79,15 @@
         <a href="#">Workshop</a>
         <a href="#">Character Builder</a>
     </div>
-    <div class="layer-controls">
-        <label><input type="radio" name="layer" value="Main" checked><span>Main Map</span></label>
-        <label><input type="radio" name="layer" value="GC1"><span>Guild Castle</span></label>
-        <label><input type="radio" name="layer" value="ArenaTournament"><span>Arena/Tournament</span></label>
-    </div>
     <div id="map-container">
         <div class="loading" id="loading">Loading map...</div>
         <canvas id="map-canvas"></canvas>
+        <div class="layer-controls">
+            <h3>Map Layers</h3>
+            <label><input type="radio" name="layer" value="Main" checked><span>Main Map</span></label>
+            <label><input type="radio" name="layer" value="GC1"><span>Guild Castle</span></label>
+            <label><input type="radio" name="layer" value="ArenaTournament"><span>Arena/Tournament</span></label>
+        </div>
     </div>
     <script>
         console.log('=== Gloria Victis Interactive Map ===');
