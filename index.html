@@ -650,6 +650,19 @@
             // Zones view is independent, don't update its position here
         }
         
+        function updateZonesPosition() {
+            if (!zonesCanvas || !showZones) return;
+            var container = document.getElementById('map-container');
+            var containerWidth = container.clientWidth;
+            var containerHeight = container.clientHeight;
+            var canvasLeft = ((containerWidth - zonesCanvas.width * zonesScale) / 2 + zonesOffsetX);
+            var canvasTop = ((containerHeight - zonesCanvas.height * zonesScale) / 2 + zonesOffsetY);
+            zonesCanvas.style.left = canvasLeft + 'px';
+            zonesCanvas.style.top = canvasTop + 'px';
+            zonesCanvas.style.transform = 'scale(' + zonesScale + ')';
+            zonesCanvas.style.transformOrigin = 'top left';
+        }
+        
         function setupControls() {
             var container = document.getElementById('map-container');
             
