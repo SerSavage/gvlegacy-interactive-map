@@ -239,10 +239,28 @@
             
             container.addEventListener('wheel', function(e) {
                 e.preventDefault();
+                
+                // Get mouse position relative to container
+                var rect = container.getBoundingClientRect();
+                var mouseX = e.clientX - rect.left;
+                var mouseY = e.clientY - rect.top;
+                
+                // Calculate the point on the canvas (before zoom) that's under the mouse
+                var canvasX = (container.scrollLeft + mouseX) / scale;
+                var canvasY = (container.scrollTop + mouseY) / scale;
+                
+                // Apply zoom
+                var oldScale = scale;
                 var delta = e.deltaY > 0 ? 0.9 : 1.1;
                 scale = Math.max(0.5, Math.min(3, scale * delta));
+                
+                // Update canvas scale
                 canvas.style.transform = 'scale(' + scale + ')';
                 canvas.style.transformOrigin = 'top left';
+                
+                // Adjust scroll to keep the same point under the mouse cursor
+                container.scrollLeft = canvasX * scale - mouseX;
+                container.scrollTop = canvasY * scale - mouseY;
             });
             
             var isDragging = false;
