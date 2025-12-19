@@ -267,9 +267,17 @@
             canvas.width = mapWidthPx;
             canvas.height = mapHeightPx;
             
+            // Resize zones canvas to match
+            if (zonesCanvas) {
+                zonesCanvas.width = mapWidthPx;
+                zonesCanvas.height = mapHeightPx;
+            }
+            
             // Resize drawing canvas to match
-            drawCanvas.width = mapWidthPx;
-            drawCanvas.height = mapHeightPx;
+            if (drawCanvas) {
+                drawCanvas.width = mapWidthPx;
+                drawCanvas.height = mapHeightPx;
+            }
             
             // Center canvas in container
             var container = document.getElementById('map-container');
@@ -277,12 +285,25 @@
             var canvasTop = (container.clientHeight - mapHeightPx) / 2;
             canvas.style.left = canvasLeft + 'px';
             canvas.style.top = canvasTop + 'px';
-            drawCanvas.style.left = canvasLeft + 'px';
-            drawCanvas.style.top = canvasTop + 'px';
             
-            // Apply same transform to drawing canvas
-            drawCanvas.style.transform = canvas.style.transform || 'scale(1)';
-            drawCanvas.style.transformOrigin = 'top left';
+            if (zonesCanvas) {
+                zonesCanvas.style.left = canvasLeft + 'px';
+                zonesCanvas.style.top = canvasTop + 'px';
+                zonesCanvas.style.transform = canvas.style.transform || 'scale(1)';
+                zonesCanvas.style.transformOrigin = 'top left';
+            }
+            
+            if (drawCanvas) {
+                drawCanvas.style.left = canvasLeft + 'px';
+                drawCanvas.style.top = canvasTop + 'px';
+                drawCanvas.style.transform = canvas.style.transform || 'scale(1)';
+                drawCanvas.style.transformOrigin = 'top left';
+            }
+            
+            // Redraw zones if enabled
+            if (showZones) {
+                drawZonesOverlay();
+            }
             
             // Fill background
             ctx.fillStyle = '#1a1a1a';
@@ -293,9 +314,16 @@
             canvas = document.getElementById('map-canvas');
             ctx = canvas.getContext('2d');
             
+            // Initialize zones canvas
+            zonesCanvas = document.getElementById('zones-canvas');
+            zonesCtx = zonesCanvas.getContext('2d');
+            
             // Initialize drawing canvas
             drawCanvas = document.getElementById('draw-canvas');
             drawCtx = drawCanvas.getContext('2d');
+            
+            // Load zones image
+            loadZonesImage();
             
             // Initialize with default bounds (will be updated as tiles load)
             resizeCanvasForLayer(activeArea);
@@ -306,8 +334,49 @@
             setupControls();
             setupLayerControls();
             setupDrawingControls();
+            setupZonesToggle();
             
             // Canvas is already centered via CSS positioning
+        }
+        
+        function loadZonesImage() {
+            zonesImage = new Image();
+            zonesImage.onload = function() {
+                console.log('Zones image loaded:', zonesImage.width + 'x' + zonesImage.height);
+                if (showZones) {
+                    drawZonesOverlay();
+                }
+            };
+            zonesImage.onerror = function() {
+                console.warn('Failed to load zones image');
+            };
+            zonesImage.src = '/MapZones.png';
+        }
+        
+        function drawZonesOverlay() {
+            if (!zonesImage || !showZones) return;
+            
+            // Resize zones canvas to match map canvas
+            zonesCanvas.width = mapWidthPx;
+            zonesCanvas.height = mapHeightPx;
+            
+            // Clear and draw zones image scaled to fit
+            zonesCtx.clearRect(0, 0, mapWidthPx, mapHeightPx);
+            zonesCtx.drawImage(zonesImage, 0, 0, mapWidthPx, mapHeightPx);
+        }
+        
+        function setupZonesToggle() {
+            var zonesToggle = document.getElementById('zones-toggle');
+            if (!zonesToggle) return;
+            zonesToggle.addEventListener('change', function() {
+                showZones = this.checked;
+                if (showZones) {
+                    drawZonesOverlay();
+                    zonesCanvas.style.display = 'block';
+                } else {
+                    zonesCanvas.style.display = 'none';
+                }
+            });
         }
         
         function loadAllTiles() {
@@ -516,6 +585,14 @@
                 // Update canvas scale
                 canvas.style.transform = 'scale(' + currentScale + ')';
                 canvas.style.transformOrigin = 'top left';
+                if (zonesCanvas) {
+                    zonesCanvas.style.transform = 'scale(' + currentScale + ')';
+                    zonesCanvas.style.transformOrigin = 'top left';
+                }
+                if (drawCanvas) {
+                    drawCanvas.style.transform = 'scale(' + currentScale + ')';
+                    drawCanvas.style.transformOrigin = 'top left';
+                }
                 
                 // Adjust canvas position to keep the same point under the mouse cursor
                 var newCanvasX = mouseX - canvasX * currentScale;
