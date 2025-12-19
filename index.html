@@ -56,10 +56,76 @@
             color: #ffff00;
             font-weight: bold;
         }
+        .drawing-controls {
+            position: fixed;
+            top: 60px;
+            right: 240px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px;
+            border: 2px solid #555;
+            border-radius: 8px;
+            z-index: 1000;
+            min-width: 200px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+        .drawing-controls h3 {
+            color: #ffff00;
+            margin-bottom: 10px;
+            font-size: 16px;
+            text-align: center;
+        }
+        .drawing-controls .control-group {
+            margin: 10px 0;
+        }
+        .drawing-controls label {
+            display: block;
+            color: #fff;
+            margin: 5px 0;
+            font-size: 12px;
+        }
+        .drawing-controls input[type="color"] {
+            width: 100%;
+            height: 40px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .drawing-controls input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+        .drawing-controls button {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            background: #444;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .drawing-controls button:hover {
+            background: #555;
+        }
+        .drawing-controls button.active {
+            background: #ffff00;
+            color: #000;
+            font-weight: bold;
+        }
         #map-canvas {
-    display: block;
+            display: block;
             background: #1a1a1a;
-    position: absolute;
+            position: absolute;
+        }
+        #draw-canvas {
+            display: block;
+            position: absolute;
+            pointer-events: none;
+            z-index: 100;
+        }
+        #draw-canvas.drawing {
+            pointer-events: auto;
         }
         .loading {
       position: absolute;
@@ -156,10 +222,22 @@
             canvas.width = mapWidthPx;
             canvas.height = mapHeightPx;
             
+            // Resize drawing canvas to match
+            drawCanvas.width = mapWidthPx;
+            drawCanvas.height = mapHeightPx;
+            
             // Center canvas in container
             var container = document.getElementById('map-container');
-            canvas.style.left = (container.clientWidth - mapWidthPx) / 2 + 'px';
-            canvas.style.top = (container.clientHeight - mapHeightPx) / 2 + 'px';
+            var canvasLeft = (container.clientWidth - mapWidthPx) / 2;
+            var canvasTop = (container.clientHeight - mapHeightPx) / 2;
+            canvas.style.left = canvasLeft + 'px';
+            canvas.style.top = canvasTop + 'px';
+            drawCanvas.style.left = canvasLeft + 'px';
+            drawCanvas.style.top = canvasTop + 'px';
+            
+            // Apply same transform to drawing canvas
+            drawCanvas.style.transform = canvas.style.transform || 'scale(1)';
+            drawCanvas.style.transformOrigin = 'top left';
             
             // Fill background
             ctx.fillStyle = '#1a1a1a';
@@ -345,6 +423,12 @@
             var canvasTop = ((container.clientHeight - mapHeightPx * currentScale) / 2 + canvasOffsetY);
             canvas.style.left = canvasLeft + 'px';
             canvas.style.top = canvasTop + 'px';
+            // Update drawing canvas position to match
+            if (drawCanvas) {
+                drawCanvas.style.left = canvasLeft + 'px';
+                drawCanvas.style.top = canvasTop + 'px';
+                drawCanvas.style.transform = canvas.style.transform || 'scale(' + currentScale + ')';
+            }
         }
         
         function setupControls() {
