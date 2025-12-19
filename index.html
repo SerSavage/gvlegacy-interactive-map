@@ -10,6 +10,26 @@
         .topmenu { background: #333; padding: 10px; text-align: center; z-index: 1000; position: relative; }
         .topmenu a { color: #fff; text-decoration: none; margin: 0 15px; }
         .topmenu a:hover { color: #ffff00; }
+        .layer-controls { 
+            background: #444; 
+            padding: 8px 15px; 
+    text-align: center;
+            border-top: 1px solid #555;
+        }
+        .layer-controls label { 
+    color: #fff;
+            margin: 0 20px; 
+    cursor: pointer;
+            font-size: 14px;
+        }
+        .layer-controls input[type="radio"] { 
+    margin-right: 5px;
+            cursor: pointer;
+        }
+        .layer-controls input[type="radio"]:checked + span {
+            color: #ffff00;
+            font-weight: bold;
+        }
         #map-container { 
         width: 100%;
             height: calc(100vh - 50px); 
@@ -18,11 +38,11 @@
     position: relative;
         }
         #map-canvas {
-      display: block;
+    display: block;
             background: #1a1a1a;
         }
         .loading {
-      position: absolute;
+    position: absolute;
     top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
@@ -40,6 +60,11 @@
         <a href="#">Workshop</a>
         <a href="#">Character Builder</a>
     </div>
+    <div class="layer-controls">
+        <label><input type="radio" name="layer" value="Main" checked><span>Main Map</span></label>
+        <label><input type="radio" name="layer" value="GC1"><span>Guild Castle</span></label>
+        <label><input type="radio" name="layer" value="ArenaTournament"><span>Arena/Tournament</span></label>
+    </div>
     <div id="map-container">
         <div class="loading" id="loading">Loading map...</div>
         <canvas id="map-canvas"></canvas>
@@ -48,7 +73,8 @@
         console.log('=== Gloria Victis Interactive Map ===');
         
         var TILE_SIZE = 512;  // Each tile is 512x512 pixels
-        var areas = ['Main'];
+        var availableAreas = ['Main', 'GC1', 'ArenaTournament'];
+        var activeArea = 'Main';  // Currently displayed layer
         var loadingDiv = document.getElementById('loading');
         
         // Map coordinates: x0y0 to x20y17
@@ -86,10 +112,11 @@
             ctx.fillStyle = '#1a1a1a';
             ctx.fillRect(0, 0, mapWidthPx, mapHeightPx);
             
-            // Start loading tiles
+            // Start loading tiles for all areas (preload)
             loadAllTiles();
             
             setupControls();
+            setupLayerControls();
             
             // Center view
             var container = document.getElementById('map-container');
@@ -100,10 +127,10 @@
         function loadAllTiles() {
             var tilesToLoad = [];
             
-            // Load tiles in order: row by row, left to right
+            // Load tiles for all areas (preload all layers)
             for (var y = minY; y <= maxY; y++) {
                 for (var x = minX; x <= maxX; x++) {
-                    areas.forEach(function(area) {
+                    availableAreas.forEach(function(area) {
                         tilesToLoad.push({x: x, y: y, area: area});
                     });
                 }
@@ -136,30 +163,33 @@
                 loadingCount--;
                 loadedCount++;
                 
-                // Coordinate system: X standard (0=left, 20=right), Y inverted (0=bottom, 17=top)
-                // x0y0 = bottom-left, x20y17 = top-right
-                var px = x * TILE_SIZE;  // X: 0 at left, increases rightward
-                var py = (maxY - y) * TILE_SIZE;  // Y: 0 at bottom, increases upward
-                
-                // Ensure we don't draw outside canvas
-                if (px >= 0 && px < mapWidthPx && py >= 0 && py < mapHeightPx) {
-                    // Check for duplicate positions
-                    var posKey = px + ',' + py;
-                    if (positionUsage[posKey]) {
-                        console.warn('DUPLICATE POSITION! x' + x + 'y' + y + ' at [' + px + ', ' + py + '] - already used by: ' + positionUsage[posKey]);
-                    } else {
-                        positionUsage[posKey] = 'x' + x + 'y' + y;
-                    }
+                // Only draw if this is the active layer
+                if (area === activeArea) {
+                    // Coordinate system: X standard (0=left, 20=right), Y inverted (0=bottom, 17=top)
+                    // x0y0 = bottom-left, x20y17 = top-right
+                    var px = x * TILE_SIZE;  // X: 0 at left, increases rightward
+                    var py = (maxY - y) * TILE_SIZE;  // Y: 0 at bottom, increases upward
                     
-                    // Draw tile directly
-                    try {
-                        ctx.drawImage(img, px, py);
-                        drawnTiles[key] = true;
-                    } catch (e) {
-                        console.error('Error drawing tile x' + x + 'y' + y + ':', e);
+                    // Ensure we don't draw outside canvas
+                    if (px >= 0 && px < mapWidthPx && py >= 0 && py < mapHeightPx) {
+                        // Check for duplicate positions
+                        var posKey = px + ',' + py;
+                        if (positionUsage[posKey]) {
+                            console.warn('DUPLICATE POSITION! x' + x + 'y' + y + ' at [' + px + ', ' + py + '] - already used by: ' + positionUsage[posKey]);
+                        } else {
+                            positionUsage[posKey] = 'x' + x + 'y' + y;
+                        }
+                        
+                        // Draw tile directly
+                        try {
+                            ctx.drawImage(img, px, py);
+                            drawnTiles[key] = true;
+                        } catch (e) {
+                            console.error('Error drawing tile x' + x + 'y' + y + ':', e);
+                        }
+                    } else {
+                        console.error('Tile x' + x + 'y' + y + ' OUT OF BOUNDS at [' + px + ', ' + py + '] (canvas: ' + mapWidthPx + 'x' + mapHeightPx + ')');
                     }
-                } else {
-                    console.error('Tile x' + x + 'y' + y + ' OUT OF BOUNDS at [' + px + ', ' + py + '] (canvas: ' + mapWidthPx + 'x' + mapHeightPx + ')');
                 }
                 
                 updateProgress();
@@ -202,11 +232,11 @@
                     console.warn('MISSING TILES: Expected ' + expectedTiles + ' but only loaded ' + loadedCount);
                 }
                 
-                // Check if all positions have tiles
+                // Check if all positions have tiles for active area
                 var missingPositions = [];
                 for (var y = minY; y <= maxY; y++) {
                     for (var x = minX; x <= maxX; x++) {
-                        var key = x + ',' + y + ',Main';
+                        var key = x + ',' + y + ',' + activeArea;
                         if (!drawnTiles[key]) {
                             missingPositions.push('x' + x + 'y' + y);
                         }
@@ -292,6 +322,60 @@
                 container.scrollLeft = scrollLeft - walkX;
                 container.scrollTop = scrollTop - walkY;
             });
+        }
+        
+        function setupLayerControls() {
+            var radios = document.querySelectorAll('input[name="layer"]');
+            
+            radios.forEach(function(radio) {
+                radio.addEventListener('change', function() {
+                    if (this.checked) {
+                        switchLayer(this.value);
+                    }
+                });
+            });
+        }
+        
+        function switchLayer(newArea) {
+            if (newArea === activeArea) return;
+            
+            console.log('Switching layer from ' + activeArea + ' to ' + newArea);
+            activeArea = newArea;
+            
+            // Clear canvas
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, mapWidthPx, mapHeightPx);
+            
+            // Reset tracking
+            drawnTiles = {};
+            positionUsage = {};
+            
+            // Redraw all tiles for the new active area
+            var redrawnCount = 0;
+            for (var y = minY; y <= maxY; y++) {
+                for (var x = minX; x <= maxX; x++) {
+                    var key = x + ',' + y + ',' + activeArea;
+                    var img = loadedTiles[key];
+                    
+                    if (img && img.complete && img.naturalWidth > 0) {
+                        // Coordinate system: X standard (0=left, 20=right), Y inverted (0=bottom, 17=top)
+                        var px = x * TILE_SIZE;
+                        var py = (maxY - y) * TILE_SIZE;
+                        
+                        if (px >= 0 && px < mapWidthPx && py >= 0 && py < mapHeightPx) {
+                            try {
+                                ctx.drawImage(img, px, py);
+                                drawnTiles[key] = true;
+                                redrawnCount++;
+                            } catch (e) {
+                                console.error('Error drawing tile x' + x + 'y' + y + ':', e);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            console.log('Switched to ' + activeArea + ' layer: ' + redrawnCount + ' tiles drawn');
         }
         
         initializeMap();
