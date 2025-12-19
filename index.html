@@ -387,6 +387,8 @@
                     return;
                 }
                 showZones = this.checked;
+                var drawingControls = document.querySelector('.drawing-controls');
+                
                 if (showZones) {
                     // Show zones canvas, hide map canvas
                     if (zonesCanvas) {
@@ -399,6 +401,22 @@
                     if (drawCanvas) {
                         drawCanvas.style.display = 'none'; // Hide drawing on zones view
                     }
+                    
+                    // Disable drawing mode and hide drawing controls
+                    drawingModeEnabled = false;
+                    if (drawingControls) {
+                        drawingControls.style.display = 'none';
+                    }
+                    var drawToggleBtn = document.getElementById('draw-toggle-btn');
+                    if (drawToggleBtn) {
+                        drawToggleBtn.classList.remove('active');
+                        drawToggleBtn.textContent = '🎨 Enable Drawing';
+                    }
+                    var drawTools = document.getElementById('draw-tools');
+                    if (drawTools) {
+                        drawTools.style.display = 'none';
+                    }
+                    isDrawing = false; // Stop any active drawing
                 } else {
                     // Show map canvas, hide zones canvas
                     if (zonesCanvas) {
@@ -409,6 +427,11 @@
                     }
                     if (drawCanvas) {
                         drawCanvas.style.display = 'block';
+                    }
+                    
+                    // Show drawing controls again
+                    if (drawingControls) {
+                        drawingControls.style.display = 'block';
                     }
                 }
             });
@@ -819,7 +842,7 @@
         }
         
         function startDrawing(e) {
-            if (!drawingModeEnabled) return;
+            if (!drawingModeEnabled || showZones) return; // Don't draw when zones is active
             isDrawing = true;
             e.preventDefault();
             e.stopPropagation(); // Prevent map panning
@@ -830,7 +853,7 @@
         }
         
         function draw(e) {
-            if (!isDrawing || !drawingModeEnabled) return;
+            if (!isDrawing || !drawingModeEnabled || showZones) return; // Don't draw when zones is active
             e.preventDefault();
             e.stopPropagation(); // Prevent map panning
             var rect = drawCanvas.getBoundingClientRect();
