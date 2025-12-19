@@ -118,6 +118,13 @@
             background: #1a1a1a;
             position: absolute;
         }
+        #zones-canvas {
+            display: block;
+            position: absolute;
+            pointer-events: none;
+            z-index: 50;
+            opacity: 0.7;
+        }
         #draw-canvas {
             display: block;
             position: absolute;
@@ -149,12 +156,16 @@
     <div id="map-container">
         <div class="loading" id="loading">Loading map...</div>
         <canvas id="map-canvas"></canvas>
+        <canvas id="zones-canvas"></canvas>
         <canvas id="draw-canvas"></canvas>
         <div class="layer-controls">
             <h3>Map Layers</h3>
             <label><input type="radio" name="layer" value="Main" checked><span>Main Map</span></label>
             <label><input type="radio" name="layer" value="GC1"><span>Guild Castle</span></label>
             <label><input type="radio" name="layer" value="ArenaTournament"><span>Arena/Tournament</span></label>
+            <div class="control-group" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #555;">
+                <label style="cursor: pointer;"><input type="checkbox" id="zones-toggle"><span>🗺️ Show Zone Map</span></label>
+            </div>
         </div>
         <div class="drawing-controls">
             <h3>Drawing Tools</h3>
@@ -202,8 +213,11 @@
         var minY = 0, maxY = 17;
         
         var canvas, ctx;
+        var zonesCanvas, zonesCtx;
         var drawCanvas, drawCtx;
         var mapWidthPx, mapHeightPx;
+        var zonesImage = null;
+        var showZones = false;
         var loadedTiles = {};
         var isDrawing = false;
         var isEraser = false;
@@ -459,6 +473,14 @@
             var canvasTop = ((container.clientHeight - mapHeightPx * currentScale) / 2 + canvasOffsetY);
             canvas.style.left = canvasLeft + 'px';
             canvas.style.top = canvasTop + 'px';
+            
+            // Update zones canvas position to match
+            if (zonesCanvas) {
+                zonesCanvas.style.left = canvasLeft + 'px';
+                zonesCanvas.style.top = canvasTop + 'px';
+                zonesCanvas.style.transform = canvas.style.transform || 'scale(' + currentScale + ')';
+            }
+            
             // Update drawing canvas position to match
             if (drawCanvas) {
                 drawCanvas.style.left = canvasLeft + 'px';
