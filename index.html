@@ -234,6 +234,9 @@
         var currentScale = 1; // Track current zoom scale
         var canvasOffsetX = 0; // Canvas pan offset X
         var canvasOffsetY = 0; // Canvas pan offset Y
+        var zonesScale = 1; // Zones canvas zoom scale
+        var zonesOffsetX = 0; // Zones canvas pan offset X
+        var zonesOffsetY = 0; // Zones canvas pan offset Y
         
         function resizeCanvasForLayer(area) {
             var bounds = layerBounds[area];
@@ -354,19 +357,20 @@
             zonesCtx.clearRect(0, 0, zonesCanvas.width, zonesCanvas.height);
             zonesCtx.drawImage(zonesImage, 0, 0);
             
-            // Center zones canvas in container
-            var container = document.getElementById('map-container');
-            var containerWidth = container.clientWidth;
-            var containerHeight = container.clientHeight;
-            var canvasLeft = (containerWidth - zonesCanvas.width) / 2;
-            var canvasTop = (containerHeight - zonesCanvas.height) / 2;
-            zonesCanvas.style.left = canvasLeft + 'px';
-            zonesCanvas.style.top = canvasTop + 'px';
+            // Reset zoom and pan when first showing zones
+            if (zonesScale === 1 && zonesOffsetX === 0 && zonesOffsetY === 0) {
+                zonesScale = 1;
+                zonesOffsetX = 0;
+                zonesOffsetY = 0;
+            }
+            
+            // Update zones canvas position with current zoom/pan
+            updateZonesPosition();
             
             console.log('Zones view drawn at original size:', {
                 imageSize: imgWidth + 'x' + imgHeight,
                 canvasSize: zonesCanvas.width + 'x' + zonesCanvas.height,
-                position: canvasLeft.toFixed(0) + ', ' + canvasTop.toFixed(0)
+                scale: zonesScale.toFixed(2)
             });
         }
         
@@ -421,6 +425,11 @@
                     if (drawCanvas) {
                         drawCanvas.style.display = 'block';
                     }
+                    
+                    // Reset zones zoom/pan when hiding
+                    zonesScale = 1;
+                    zonesOffsetX = 0;
+                    zonesOffsetY = 0;
                     
                     // Show drawing controls again
                     if (drawingControls) {
@@ -652,6 +661,18 @@
             container.addEventListener('mousedown', function(e) {
                 // Don't start dragging if drawing mode is enabled (let drawing canvas handle it)
                 if (drawingModeEnabled) return;
+                
+                // Handle zones view dragging
+                if (showZones && zonesCanvas) {
+                    isDragging = true;
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    startOffsetX = zonesOffsetX;
+                    startOffsetY = zonesOffsetY;
+                    return;
+                }
+                
+                // Handle main map dragging
                 isDragging = true;
                 startX = e.clientX;
                 startY = e.clientY;
@@ -677,8 +698,19 @@
                 if (drawingModeEnabled && isDrawing) return;
                 if (!isDragging) return;
                 e.preventDefault();
+                
                 var deltaX = e.clientX - startX;
                 var deltaY = e.clientY - startY;
+                
+                // Handle zones view panning
+                if (showZones && zonesCanvas) {
+                    zonesOffsetX = startOffsetX + deltaX;
+                    zonesOffsetY = startOffsetY + deltaY;
+                    updateZonesPosition();
+                    return;
+                }
+                
+                // Handle main map panning
                 canvasOffsetX = startOffsetX + deltaX;
                 canvasOffsetY = startOffsetY + deltaY;
                 updateCanvasPosition();
