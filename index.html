@@ -159,6 +159,9 @@
         <div class="drawing-controls">
             <h3>Drawing Tools</h3>
             <div class="control-group">
+                <button id="draw-toggle-btn">🎨 Enable Drawing</button>
+            </div>
+            <div class="control-group" id="draw-tools" style="display: none;">
                 <button id="pen-btn" class="active">✏️ Pen</button>
                 <button id="eraser-btn">🧹 Eraser</button>
             </div>
@@ -208,6 +211,7 @@
         var drawSize = 5;
         var lastX = 0;
         var lastY = 0;
+        var drawingModeEnabled = false;
         var loadingCount = 0;
         var totalToLoad = 0;
         var loadedCount = 0;
@@ -543,6 +547,8 @@
         }
         
         function setupDrawingControls() {
+            var drawToggleBtn = document.getElementById('draw-toggle-btn');
+            var drawTools = document.getElementById('draw-tools');
             var penBtn = document.getElementById('pen-btn');
             var eraserBtn = document.getElementById('eraser-btn');
             var colorInput = document.getElementById('draw-color');
@@ -551,19 +557,36 @@
             var clearBtn = document.getElementById('clear-btn');
             var saveBtn = document.getElementById('save-btn');
             
+            // Toggle drawing mode on/off
+            drawToggleBtn.addEventListener('click', function() {
+                drawingModeEnabled = !drawingModeEnabled;
+                if (drawingModeEnabled) {
+                    drawTools.style.display = 'block';
+                    drawCanvas.classList.add('drawing');
+                    drawToggleBtn.textContent = '🚫 Disable Drawing';
+                    drawToggleBtn.classList.add('active');
+                } else {
+                    drawTools.style.display = 'none';
+                    drawCanvas.classList.remove('drawing');
+                    drawToggleBtn.textContent = '🎨 Enable Drawing';
+                    drawToggleBtn.classList.remove('active');
+                    isDrawing = false; // Stop any active drawing
+                }
+            });
+            
             // Pen/Eraser toggle
             penBtn.addEventListener('click', function() {
+                if (!drawingModeEnabled) return;
                 isEraser = false;
                 penBtn.classList.add('active');
                 eraserBtn.classList.remove('active');
-                drawCanvas.classList.add('drawing');
             });
             
             eraserBtn.addEventListener('click', function() {
+                if (!drawingModeEnabled) return;
                 isEraser = true;
                 eraserBtn.classList.add('active');
                 penBtn.classList.remove('active');
-                drawCanvas.classList.add('drawing');
             });
             
             // Color picker
@@ -597,6 +620,7 @@
             
             // Touch events for mobile
             drawCanvas.addEventListener('touchstart', function(e) {
+                if (!drawingModeEnabled) return;
                 e.preventDefault();
                 var touch = e.touches[0];
                 var rect = drawCanvas.getBoundingClientRect();
@@ -607,8 +631,8 @@
             });
             
             drawCanvas.addEventListener('touchmove', function(e) {
+                if (!isDrawing || !drawingModeEnabled) return;
                 e.preventDefault();
-                if (!isDrawing) return;
                 var touch = e.touches[0];
                 var rect = drawCanvas.getBoundingClientRect();
                 var scale = currentScale;
@@ -623,7 +647,9 @@
         }
         
         function startDrawing(e) {
+            if (!drawingModeEnabled) return;
             isDrawing = true;
+            e.preventDefault();
             var rect = drawCanvas.getBoundingClientRect();
             var scale = currentScale;
             lastX = (e.clientX - rect.left) / scale;
@@ -631,7 +657,7 @@
         }
         
         function draw(e) {
-            if (!isDrawing) return;
+            if (!isDrawing || !drawingModeEnabled) return;
             e.preventDefault();
             var rect = drawCanvas.getBoundingClientRect();
             var scale = currentScale;
