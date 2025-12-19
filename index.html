@@ -136,9 +136,10 @@
                 loadingCount--;
                 loadedCount++;
                 
-                // Invert both X and Y axes
-                var px = (maxX - x) * TILE_SIZE;
-                var py = (maxY - y) * TILE_SIZE;
+                // Coordinate system: X standard (0=left, 20=right), Y inverted (0=bottom, 17=top)
+                // x0y0 = bottom-left, x20y17 = top-right
+                var px = x * TILE_SIZE;  // X: 0 at left, increases rightward
+                var py = (maxY - y) * TILE_SIZE;  // Y: 0 at bottom, increases upward
                 
                 // Ensure we don't draw outside canvas
                 if (px >= 0 && px < mapWidthPx && py >= 0 && py < mapHeightPx) {
