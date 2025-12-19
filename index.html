@@ -161,11 +161,11 @@
         <div class="layer-controls">
             <h3>Map Layers</h3>
             <label><input type="radio" name="layer" value="Main" checked><span>Main Map</span></label>
+            <div id="main-map-options" style="margin-left: 20px; margin-top: 5px; margin-bottom: 5px;">
+                <label style="cursor: pointer; font-size: 12px;"><input type="checkbox" id="zones-toggle"><span>🗺️ Show Zone Map</span></label>
+            </div>
             <label><input type="radio" name="layer" value="GC1"><span>Guild Castle</span></label>
             <label><input type="radio" name="layer" value="ArenaTournament"><span>Arena/Tournament</span></label>
-            <div class="control-group" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #555;">
-                <label style="cursor: pointer;"><input type="checkbox" id="zones-toggle"><span>🗺️ Show Zone Map</span></label>
-            </div>
         </div>
         <div class="drawing-controls">
             <h3>Drawing Tools</h3>
@@ -369,12 +369,21 @@
             var zonesToggle = document.getElementById('zones-toggle');
             if (!zonesToggle) return;
             zonesToggle.addEventListener('change', function() {
+                // Only allow zones on Main map
+                if (activeArea !== 'Main') {
+                    this.checked = false;
+                    return;
+                }
                 showZones = this.checked;
                 if (showZones) {
                     drawZonesOverlay();
-                    zonesCanvas.style.display = 'block';
+                    if (zonesCanvas) {
+                        zonesCanvas.style.display = 'block';
+                    }
                 } else {
-                    zonesCanvas.style.display = 'none';
+                    if (zonesCanvas) {
+                        zonesCanvas.style.display = 'none';
+                    }
                 }
             });
         }
@@ -644,14 +653,40 @@
         
         function setupLayerControls() {
             var radios = document.querySelectorAll('input[name="layer"]');
+            var mainMapOptions = document.getElementById('main-map-options');
             
             radios.forEach(function(radio) {
                 radio.addEventListener('change', function() {
                     if (this.checked) {
                         switchLayer(this.value);
+                        
+                        // Show zones toggle only for Main map
+                        if (this.value === 'Main') {
+                            mainMapOptions.style.display = 'block';
+                        } else {
+                            mainMapOptions.style.display = 'none';
+                            // Hide zones when switching away from Main
+                            if (showZones) {
+                                var zonesToggle = document.getElementById('zones-toggle');
+                                if (zonesToggle) {
+                                    zonesToggle.checked = false;
+                                    showZones = false;
+                                    if (zonesCanvas) {
+                                        zonesCanvas.style.display = 'none';
+                                    }
+                                }
+                            }
+                        }
                     }
                 });
             });
+            
+            // Initially show options for Main (default)
+            if (activeArea === 'Main') {
+                mainMapOptions.style.display = 'block';
+            } else {
+                mainMapOptions.style.display = 'none';
+            }
         }
         
         function setupDrawingControls() {
