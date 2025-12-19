@@ -508,6 +508,8 @@
             var startX, startY, startOffsetX, startOffsetY;
             
             container.addEventListener('mousedown', function(e) {
+                // Don't start dragging if drawing mode is enabled (let drawing canvas handle it)
+                if (drawingModeEnabled) return;
                 isDragging = true;
                 startX = e.clientX;
                 startY = e.clientY;
@@ -516,14 +518,21 @@
             });
             
             container.addEventListener('mouseleave', function() {
-                isDragging = false;
+                if (!drawingModeEnabled) {
+                    isDragging = false;
+                }
             });
             
-            container.addEventListener('mouseup', function() {
-                isDragging = false;
+            container.addEventListener('mouseup', function(e) {
+                // Only stop dragging if not in drawing mode, or if drawing is not active
+                if (!drawingModeEnabled || !isDrawing) {
+                    isDragging = false;
+                }
             });
             
             container.addEventListener('mousemove', function(e) {
+                // Don't pan if drawing mode is enabled and user is drawing
+                if (drawingModeEnabled && isDrawing) return;
                 if (!isDragging) return;
                 e.preventDefault();
                 var deltaX = e.clientX - startX;
@@ -622,6 +631,7 @@
             drawCanvas.addEventListener('touchstart', function(e) {
                 if (!drawingModeEnabled) return;
                 e.preventDefault();
+                e.stopPropagation(); // Prevent map panning
                 var touch = e.touches[0];
                 var rect = drawCanvas.getBoundingClientRect();
                 var scale = currentScale;
@@ -633,6 +643,7 @@
             drawCanvas.addEventListener('touchmove', function(e) {
                 if (!isDrawing || !drawingModeEnabled) return;
                 e.preventDefault();
+                e.stopPropagation(); // Prevent map panning
                 var touch = e.touches[0];
                 var rect = drawCanvas.getBoundingClientRect();
                 var scale = currentScale;
@@ -643,7 +654,9 @@
                 lastY = y;
             });
             
-            drawCanvas.addEventListener('touchend', stopDrawing);
+            drawCanvas.addEventListener('touchend', function(e) {
+                stopDrawing(e);
+            });
         }
         
         function startDrawing(e) {
