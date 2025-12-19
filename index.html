@@ -122,8 +122,7 @@
             display: block;
             position: absolute;
             pointer-events: none;
-            z-index: 50;
-            opacity: 0.7;
+            z-index: 10;
         }
         #draw-canvas {
             display: block;
@@ -156,7 +155,7 @@
     <div id="map-container">
         <div class="loading" id="loading">Loading map...</div>
         <canvas id="map-canvas"></canvas>
-        <canvas id="zones-canvas"></canvas>
+        <canvas id="zones-canvas" style="display: none;"></canvas>
         <canvas id="draw-canvas"></canvas>
         <div class="layer-controls">
             <h3>Map Layers</h3>
@@ -267,12 +266,6 @@
             canvas.width = mapWidthPx;
             canvas.height = mapHeightPx;
             
-            // Resize zones canvas to match
-            if (zonesCanvas) {
-                zonesCanvas.width = mapWidthPx;
-                zonesCanvas.height = mapHeightPx;
-            }
-            
             // Resize drawing canvas to match
             if (drawCanvas) {
                 drawCanvas.width = mapWidthPx;
@@ -286,13 +279,6 @@
             canvas.style.left = canvasLeft + 'px';
             canvas.style.top = canvasTop + 'px';
             
-            if (zonesCanvas) {
-                zonesCanvas.style.left = canvasLeft + 'px';
-                zonesCanvas.style.top = canvasTop + 'px';
-                zonesCanvas.style.transform = canvas.style.transform || 'scale(1)';
-                zonesCanvas.style.transformOrigin = 'top left';
-            }
-            
             if (drawCanvas) {
                 drawCanvas.style.left = canvasLeft + 'px';
                 drawCanvas.style.top = canvasTop + 'px';
@@ -300,9 +286,9 @@
                 drawCanvas.style.transformOrigin = 'top left';
             }
             
-            // Redraw zones if enabled
-            if (showZones) {
-                drawZonesOverlay();
+            // Redraw zones if enabled (but only if Main map is active)
+            if (showZones && activeArea === 'Main') {
+                drawZonesView();
             }
             
             // Fill background
@@ -344,7 +330,7 @@
             zonesImage.onload = function() {
                 console.log('Zones image loaded:', zonesImage.width + 'x' + zonesImage.height);
                 if (showZones) {
-                    drawZonesOverlay();
+                    drawZonesView();
                 }
             };
             zonesImage.onerror = function() {
@@ -353,40 +339,41 @@
             zonesImage.src = '/MapZones.png';
         }
         
-        function drawZonesOverlay() {
-            if (!zonesImage || !showZones || !zonesImage.complete) return;
+        function drawZonesView() {
+            if (!zonesImage || !zonesImage.complete) return;
             
-            // Resize zones canvas to match map canvas
-            zonesCanvas.width = mapWidthPx;
-            zonesCanvas.height = mapHeightPx;
-            
-            // Clear canvas
-            zonesCtx.clearRect(0, 0, mapWidthPx, mapHeightPx);
-            
-            // Calculate scaling to fit the image to the map while maintaining aspect ratio
+            // Get zones image dimensions
             var imgWidth = zonesImage.width;
             var imgHeight = zonesImage.height;
-            var scaleX = mapWidthPx / imgWidth;
-            var scaleY = mapHeightPx / imgHeight;
-            var scale = Math.min(scaleX, scaleY); // Use smaller scale to fit within bounds
             
-            // Calculate scaled dimensions
-            var scaledWidth = imgWidth * scale;
-            var scaledHeight = imgHeight * scale;
+            // Set zones canvas to match image size (or scale to fit container)
+            var container = document.getElementById('map-container');
+            var containerWidth = container.clientWidth;
+            var containerHeight = container.clientHeight;
             
-            // Center the image
-            var x = (mapWidthPx - scaledWidth) / 2;
-            var y = (mapHeightPx - scaledHeight) / 2;
+            // Calculate scale to fit container while maintaining aspect ratio
+            var scaleX = containerWidth / imgWidth;
+            var scaleY = containerHeight / imgHeight;
+            var scale = Math.min(scaleX, scaleY, 1); // Don't scale up, only down if needed
             
-            // Draw the zones image scaled and centered
-            zonesCtx.drawImage(zonesImage, x, y, scaledWidth, scaledHeight);
+            // Set canvas size to scaled image size
+            zonesCanvas.width = imgWidth * scale;
+            zonesCanvas.height = imgHeight * scale;
             
-            console.log('Zones overlay drawn:', {
+            // Clear and draw zones image
+            zonesCtx.clearRect(0, 0, zonesCanvas.width, zonesCanvas.height);
+            zonesCtx.drawImage(zonesImage, 0, 0, zonesCanvas.width, zonesCanvas.height);
+            
+            // Center zones canvas in container
+            var canvasLeft = (containerWidth - zonesCanvas.width) / 2;
+            var canvasTop = (containerHeight - zonesCanvas.height) / 2;
+            zonesCanvas.style.left = canvasLeft + 'px';
+            zonesCanvas.style.top = canvasTop + 'px';
+            
+            console.log('Zones view drawn:', {
                 imageSize: imgWidth + 'x' + imgHeight,
-                mapSize: mapWidthPx + 'x' + mapHeightPx,
-                scale: scale.toFixed(3),
-                scaledSize: scaledWidth.toFixed(0) + 'x' + scaledHeight.toFixed(0),
-                position: x.toFixed(0) + ', ' + y.toFixed(0)
+                canvasSize: zonesCanvas.width + 'x' + zonesCanvas.height,
+                scale: scale.toFixed(3)
             });
         }
         
@@ -401,13 +388,27 @@
                 }
                 showZones = this.checked;
                 if (showZones) {
-                    drawZonesOverlay();
+                    // Show zones canvas, hide map canvas
                     if (zonesCanvas) {
+                        drawZonesView();
                         zonesCanvas.style.display = 'block';
                     }
+                    if (canvas) {
+                        canvas.style.display = 'none';
+                    }
+                    if (drawCanvas) {
+                        drawCanvas.style.display = 'none'; // Hide drawing on zones view
+                    }
                 } else {
+                    // Show map canvas, hide zones canvas
                     if (zonesCanvas) {
                         zonesCanvas.style.display = 'none';
+                    }
+                    if (canvas) {
+                        canvas.style.display = 'block';
+                    }
+                    if (drawCanvas) {
+                        drawCanvas.style.display = 'block';
                     }
                 }
             });
@@ -577,19 +578,14 @@
             canvas.style.left = canvasLeft + 'px';
             canvas.style.top = canvasTop + 'px';
             
-            // Update zones canvas position to match
-            if (zonesCanvas) {
-                zonesCanvas.style.left = canvasLeft + 'px';
-                zonesCanvas.style.top = canvasTop + 'px';
-                zonesCanvas.style.transform = canvas.style.transform || 'scale(' + currentScale + ')';
-            }
-            
             // Update drawing canvas position to match
             if (drawCanvas) {
                 drawCanvas.style.left = canvasLeft + 'px';
                 drawCanvas.style.top = canvasTop + 'px';
                 drawCanvas.style.transform = canvas.style.transform || 'scale(' + currentScale + ')';
             }
+            
+            // Zones view is independent, don't update its position here
         }
         
         function setupControls() {
@@ -619,14 +615,11 @@
                 // Update canvas scale
                 canvas.style.transform = 'scale(' + currentScale + ')';
                 canvas.style.transformOrigin = 'top left';
-                if (zonesCanvas) {
-                    zonesCanvas.style.transform = 'scale(' + currentScale + ')';
-                    zonesCanvas.style.transformOrigin = 'top left';
-                }
                 if (drawCanvas) {
                     drawCanvas.style.transform = 'scale(' + currentScale + ')';
                     drawCanvas.style.transformOrigin = 'top left';
                 }
+                // Zones view is independent, don't scale it with map zoom
                 
                 // Adjust canvas position to keep the same point under the mouse cursor
                 var newCanvasX = mouseX - canvasX * currentScale;
@@ -698,6 +691,13 @@
                                     showZones = false;
                                     if (zonesCanvas) {
                                         zonesCanvas.style.display = 'none';
+                                    }
+                                    // Show map canvas again
+                                    if (canvas) {
+                                        canvas.style.display = 'block';
+                                    }
+                                    if (drawCanvas) {
+                                        drawCanvas.style.display = 'block';
                                     }
                                 }
                             }
