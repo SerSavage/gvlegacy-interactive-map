@@ -14,7 +14,7 @@
         width: 100%;
             height: calc(100vh - 50px); 
             background: #1a1a1a; 
-            overflow: auto;
+            overflow: hidden;
     position: relative;
         }
         .layer-controls { 
@@ -33,11 +33,11 @@
             color: #ffff00;
             margin-bottom: 10px;
             font-size: 16px;
-            text-align: center;
-        }
+    text-align: center;
+  }
         .layer-controls label { 
-            display: block;
-            color: #fff;
+      display: block;
+    color: #fff;
             margin: 8px 0; 
             cursor: pointer;
             font-size: 14px;
@@ -50,8 +50,8 @@
         }
         .layer-controls input[type="radio"] { 
             margin-right: 8px;
-            cursor: pointer;
-        }
+    cursor: pointer;
+  }
         .layer-controls input[type="radio"]:checked + span {
             color: #ffff00;
             font-weight: bold;
@@ -59,9 +59,10 @@
         #map-canvas {
     display: block;
             background: #1a1a1a;
+    position: absolute;
         }
         .loading {
-    position: absolute;
+      position: absolute;
     top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
@@ -121,6 +122,8 @@
         var drawnTiles = {}; // Track which tiles have been drawn
         var positionUsage = {}; // Track which tiles are drawn at each pixel position
         var currentScale = 1; // Track current zoom scale
+        var canvasOffsetX = 0; // Canvas pan offset X
+        var canvasOffsetY = 0; // Canvas pan offset Y
         
         function resizeCanvasForLayer(area) {
             var bounds = layerBounds[area];
@@ -153,6 +156,11 @@
             canvas.width = mapWidthPx;
             canvas.height = mapHeightPx;
             
+            // Center canvas in container
+            var container = document.getElementById('map-container');
+            canvas.style.left = (container.clientWidth - mapWidthPx) / 2 + 'px';
+            canvas.style.top = (container.clientHeight - mapHeightPx) / 2 + 'px';
+            
             // Fill background
             ctx.fillStyle = '#1a1a1a';
             ctx.fillRect(0, 0, mapWidthPx, mapHeightPx);
@@ -171,12 +179,7 @@
             setupControls();
             setupLayerControls();
             
-            // Center view (will be updated when bounds are known)
-            var container = document.getElementById('map-container');
-            setTimeout(function() {
-                container.scrollLeft = mapWidthPx / 2 - container.clientWidth / 2;
-                container.scrollTop = mapHeightPx / 2 - container.clientHeight / 2;
-            }, 100);
+            // Canvas is already centered via CSS positioning
         }
         
         function loadAllTiles() {
@@ -338,6 +341,13 @@
         
         function setupControls() {
             var container = document.getElementById('map-container');
+            var canvasOffsetX = 0;
+            var canvasOffsetY = 0;
+            
+            function updateCanvasPosition() {
+                canvas.style.left = ((container.clientWidth - mapWidthPx * currentScale) / 2 + canvasOffsetX) + 'px';
+                canvas.style.top = ((container.clientHeight - mapHeightPx * currentScale) / 2 + canvasOffsetY) + 'px';
+            }
             
             container.addEventListener('wheel', function(e) {
                 e.preventDefault();
@@ -347,32 +357,41 @@
                 var mouseX = e.clientX - rect.left;
                 var mouseY = e.clientY - rect.top;
                 
+                // Get current canvas position
+                var canvasLeft = parseFloat(canvas.style.left) || (container.clientWidth - mapWidthPx * currentScale) / 2;
+                var canvasTop = parseFloat(canvas.style.top) || (container.clientHeight - mapHeightPx * currentScale) / 2;
+                
                 // Calculate the point on the canvas (before zoom) that's under the mouse
-                var canvasX = (container.scrollLeft + mouseX) / currentScale;
-                var canvasY = (container.scrollTop + mouseY) / currentScale;
+                var canvasX = (mouseX - canvasLeft) / currentScale;
+                var canvasY = (mouseY - canvasTop) / currentScale;
                 
                 // Apply zoom
                 var delta = e.deltaY > 0 ? 0.9 : 1.1;
+                var oldScale = currentScale;
                 currentScale = Math.max(0.5, Math.min(3, currentScale * delta));
                 
                 // Update canvas scale
                 canvas.style.transform = 'scale(' + currentScale + ')';
                 canvas.style.transformOrigin = 'top left';
                 
-                // Adjust scroll to keep the same point under the mouse cursor
-                container.scrollLeft = canvasX * currentScale - mouseX;
-                container.scrollTop = canvasY * currentScale - mouseY;
+                // Adjust canvas position to keep the same point under the mouse cursor
+                var newCanvasX = mouseX - canvasX * currentScale;
+                var newCanvasY = mouseY - canvasY * currentScale;
+                canvasOffsetX = newCanvasX - (container.clientWidth - mapWidthPx * currentScale) / 2;
+                canvasOffsetY = newCanvasY - (container.clientHeight - mapHeightPx * currentScale) / 2;
+                
+                updateCanvasPositionLocal();
             });
             
             var isDragging = false;
-            var startX, startY, scrollLeft, scrollTop;
+            var startX, startY, startOffsetX, startOffsetY;
             
             container.addEventListener('mousedown', function(e) {
                 isDragging = true;
-                startX = e.pageX - container.offsetLeft;
-                startY = e.pageY - container.offsetTop;
-                scrollLeft = container.scrollLeft;
-                scrollTop = container.scrollTop;
+                startX = e.clientX;
+                startY = e.clientY;
+                startOffsetX = canvasOffsetX;
+                startOffsetY = canvasOffsetY;
             });
             
             container.addEventListener('mouseleave', function() {
@@ -386,12 +405,11 @@
             container.addEventListener('mousemove', function(e) {
                 if (!isDragging) return;
                 e.preventDefault();
-                var x = e.pageX - container.offsetLeft;
-                var y = e.pageY - container.offsetTop;
-                var walkX = (x - startX) * 2;
-                var walkY = (y - startY) * 2;
-                container.scrollLeft = scrollLeft - walkX;
-                container.scrollTop = scrollTop - walkY;
+                var deltaX = e.clientX - startX;
+                var deltaY = e.clientY - startY;
+                canvasOffsetX = startOffsetX + deltaX;
+                canvasOffsetY = startOffsetY + deltaY;
+                updateCanvasPositionLocal();
             });
         }
         
@@ -468,11 +486,10 @@
                 }
             }
             
-            // Adjust scroll to maintain relative position (center the view)
-            var newCanvasCenterX = mapWidthPx / 2;
-            var newCanvasCenterY = mapHeightPx / 2;
-            container.scrollLeft = newCanvasCenterX * currentScale - container.clientWidth / 2;
-            container.scrollTop = newCanvasCenterY * currentScale - container.clientHeight / 2;
+            // Reset canvas offset and center it
+            canvasOffsetX = 0;
+            canvasOffsetY = 0;
+            updateCanvasPosition();
             
             console.log('Switched to ' + activeArea + ' layer: ' + redrawnCount + ' tiles drawn');
             console.log('New canvas size: ' + mapWidthPx + 'x' + mapHeightPx);
