@@ -663,6 +663,7 @@
             if (!drawingModeEnabled) return;
             isDrawing = true;
             e.preventDefault();
+            e.stopPropagation(); // Prevent map panning
             var rect = drawCanvas.getBoundingClientRect();
             var scale = currentScale;
             lastX = (e.clientX - rect.left) / scale;
@@ -672,6 +673,7 @@
         function draw(e) {
             if (!isDrawing || !drawingModeEnabled) return;
             e.preventDefault();
+            e.stopPropagation(); // Prevent map panning
             var rect = drawCanvas.getBoundingClientRect();
             var scale = currentScale;
             var x = (e.clientX - rect.left) / scale;
@@ -699,7 +701,11 @@
             drawCtx.stroke();
         }
         
-        function stopDrawing() {
+        function stopDrawing(e) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation(); // Prevent map panning
+            }
             isDrawing = false;
         }
         
