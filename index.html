@@ -619,6 +619,36 @@
             container.addEventListener('wheel', function(e) {
                 e.preventDefault();
                 
+                // Handle zones view zoom/pan
+                if (showZones && zonesCanvas) {
+                    // Get mouse position relative to container
+                    var rect = container.getBoundingClientRect();
+                    var mouseX = e.clientX - rect.left;
+                    var mouseY = e.clientY - rect.top;
+                    
+                    // Get current zones canvas position
+                    var canvasLeft = parseFloat(zonesCanvas.style.left) || (container.clientWidth - zonesCanvas.width * zonesScale) / 2;
+                    var canvasTop = parseFloat(zonesCanvas.style.top) || (container.clientHeight - zonesCanvas.height * zonesScale) / 2;
+                    
+                    // Calculate the point on the zones canvas (before zoom) that's under the mouse
+                    var canvasX = (mouseX - canvasLeft) / zonesScale;
+                    var canvasY = (mouseY - canvasTop) / zonesScale;
+                    
+                    // Apply zoom
+                    var delta = e.deltaY > 0 ? 0.9 : 1.1;
+                    zonesScale = Math.max(0.1, Math.min(5, zonesScale * delta)); // Allow more zoom out for zones
+                    
+                    // Adjust zones canvas position to keep the same point under the mouse cursor
+                    var newCanvasX = mouseX - canvasX * zonesScale;
+                    var newCanvasY = mouseY - canvasY * zonesScale;
+                    zonesOffsetX = newCanvasX - (container.clientWidth - zonesCanvas.width * zonesScale) / 2;
+                    zonesOffsetY = newCanvasY - (container.clientHeight - zonesCanvas.height * zonesScale) / 2;
+                    
+                    updateZonesPosition();
+                    return;
+                }
+                
+                // Handle main map zoom/pan
                 // Get mouse position relative to container
                 var rect = container.getBoundingClientRect();
                 var mouseX = e.clientX - rect.left;
@@ -644,7 +674,6 @@
                     drawCanvas.style.transform = 'scale(' + currentScale + ')';
                     drawCanvas.style.transformOrigin = 'top left';
                 }
-                // Zones view is independent, don't scale it with map zoom
                 
                 // Adjust canvas position to keep the same point under the mouse cursor
                 var newCanvasX = mouseX - canvasX * currentScale;
