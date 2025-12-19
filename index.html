@@ -339,6 +339,14 @@
             }
         }
         
+        function updateCanvasPosition() {
+            var container = document.getElementById('map-container');
+            var canvasLeft = ((container.clientWidth - mapWidthPx * currentScale) / 2 + canvasOffsetX);
+            var canvasTop = ((container.clientHeight - mapHeightPx * currentScale) / 2 + canvasOffsetY);
+            canvas.style.left = canvasLeft + 'px';
+            canvas.style.top = canvasTop + 'px';
+        }
+        
         function setupControls() {
             var container = document.getElementById('map-container');
             
