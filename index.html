@@ -149,11 +149,31 @@
     <div id="map-container">
         <div class="loading" id="loading">Loading map...</div>
         <canvas id="map-canvas"></canvas>
+        <canvas id="draw-canvas"></canvas>
         <div class="layer-controls">
             <h3>Map Layers</h3>
             <label><input type="radio" name="layer" value="Main" checked><span>Main Map</span></label>
             <label><input type="radio" name="layer" value="GC1"><span>Guild Castle</span></label>
             <label><input type="radio" name="layer" value="ArenaTournament"><span>Arena/Tournament</span></label>
+        </div>
+        <div class="drawing-controls">
+            <h3>Drawing Tools</h3>
+            <div class="control-group">
+                <button id="pen-btn" class="active">✏️ Pen</button>
+                <button id="eraser-btn">🧹 Eraser</button>
+            </div>
+            <div class="control-group">
+                <label>Color:</label>
+                <input type="color" id="draw-color" value="#ffff00">
+            </div>
+            <div class="control-group">
+                <label>Size: <span id="size-value">5</span>px</label>
+                <input type="range" id="draw-size" min="1" max="20" value="5">
+            </div>
+            <div class="control-group">
+                <button id="clear-btn">🗑️ Clear All</button>
+                <button id="save-btn">💾 Save Image</button>
+            </div>
         </div>
     </div>
     <script>
@@ -179,8 +199,15 @@
         var minY = 0, maxY = 17;
         
         var canvas, ctx;
+        var drawCanvas, drawCtx;
         var mapWidthPx, mapHeightPx;
         var loadedTiles = {};
+        var isDrawing = false;
+        var isEraser = false;
+        var drawColor = '#ffff00';
+        var drawSize = 5;
+        var lastX = 0;
+        var lastY = 0;
         var loadingCount = 0;
         var totalToLoad = 0;
         var loadedCount = 0;
@@ -248,6 +275,10 @@
             canvas = document.getElementById('map-canvas');
             ctx = canvas.getContext('2d');
             
+            // Initialize drawing canvas
+            drawCanvas = document.getElementById('draw-canvas');
+            drawCtx = drawCanvas.getContext('2d');
+            
             // Initialize with default bounds (will be updated as tiles load)
             resizeCanvasForLayer(activeArea);
             
@@ -256,6 +287,7 @@
             
             setupControls();
             setupLayerControls();
+            setupDrawingControls();
             
             // Canvas is already centered via CSS positioning
         }
@@ -508,6 +540,154 @@
                     }
                 });
             });
+        }
+        
+        function setupDrawingControls() {
+            var penBtn = document.getElementById('pen-btn');
+            var eraserBtn = document.getElementById('eraser-btn');
+            var colorInput = document.getElementById('draw-color');
+            var sizeInput = document.getElementById('draw-size');
+            var sizeValue = document.getElementById('size-value');
+            var clearBtn = document.getElementById('clear-btn');
+            var saveBtn = document.getElementById('save-btn');
+            
+            // Pen/Eraser toggle
+            penBtn.addEventListener('click', function() {
+                isEraser = false;
+                penBtn.classList.add('active');
+                eraserBtn.classList.remove('active');
+                drawCanvas.classList.add('drawing');
+            });
+            
+            eraserBtn.addEventListener('click', function() {
+                isEraser = true;
+                eraserBtn.classList.add('active');
+                penBtn.classList.remove('active');
+                drawCanvas.classList.add('drawing');
+            });
+            
+            // Color picker
+            colorInput.addEventListener('change', function() {
+                drawColor = this.value;
+            });
+            
+            // Size slider
+            sizeInput.addEventListener('input', function() {
+                drawSize = parseInt(this.value);
+                sizeValue.textContent = drawSize;
+            });
+            
+            // Clear button
+            clearBtn.addEventListener('click', function() {
+                if (confirm('Clear all drawings?')) {
+                    drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+                }
+            });
+            
+            // Save button
+            saveBtn.addEventListener('click', function() {
+                saveMapWithDrawings();
+            });
+            
+            // Drawing events
+            drawCanvas.addEventListener('mousedown', startDrawing);
+            drawCanvas.addEventListener('mousemove', draw);
+            drawCanvas.addEventListener('mouseup', stopDrawing);
+            drawCanvas.addEventListener('mouseout', stopDrawing);
+            
+            // Touch events for mobile
+            drawCanvas.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                var touch = e.touches[0];
+                var rect = drawCanvas.getBoundingClientRect();
+                var scale = currentScale;
+                lastX = (touch.clientX - rect.left) / scale;
+                lastY = (touch.clientY - rect.top) / scale;
+                isDrawing = true;
+            });
+            
+            drawCanvas.addEventListener('touchmove', function(e) {
+                e.preventDefault();
+                if (!isDrawing) return;
+                var touch = e.touches[0];
+                var rect = drawCanvas.getBoundingClientRect();
+                var scale = currentScale;
+                var x = (touch.clientX - rect.left) / scale;
+                var y = (touch.clientY - rect.top) / scale;
+                drawLine(lastX, lastY, x, y);
+                lastX = x;
+                lastY = y;
+            });
+            
+            drawCanvas.addEventListener('touchend', stopDrawing);
+        }
+        
+        function startDrawing(e) {
+            isDrawing = true;
+            var rect = drawCanvas.getBoundingClientRect();
+            var scale = currentScale;
+            lastX = (e.clientX - rect.left) / scale;
+            lastY = (e.clientY - rect.top) / scale;
+        }
+        
+        function draw(e) {
+            if (!isDrawing) return;
+            e.preventDefault();
+            var rect = drawCanvas.getBoundingClientRect();
+            var scale = currentScale;
+            var x = (e.clientX - rect.left) / scale;
+            var y = (e.clientY - rect.top) / scale;
+            drawLine(lastX, lastY, x, y);
+            lastX = x;
+            lastY = y;
+        }
+        
+        function drawLine(x1, y1, x2, y2) {
+            drawCtx.lineWidth = drawSize;
+            drawCtx.lineCap = 'round';
+            drawCtx.lineJoin = 'round';
+            
+            if (isEraser) {
+                drawCtx.globalCompositeOperation = 'destination-out';
+            } else {
+                drawCtx.globalCompositeOperation = 'source-over';
+                drawCtx.strokeStyle = drawColor;
+            }
+            
+            drawCtx.beginPath();
+            drawCtx.moveTo(x1, y1);
+            drawCtx.lineTo(x2, y2);
+            drawCtx.stroke();
+        }
+        
+        function stopDrawing() {
+            isDrawing = false;
+        }
+        
+        function saveMapWithDrawings() {
+            // Create a temporary canvas to combine map and drawings
+            var combinedCanvas = document.createElement('canvas');
+            combinedCanvas.width = mapWidthPx;
+            combinedCanvas.height = mapHeightPx;
+            var combinedCtx = combinedCanvas.getContext('2d');
+            
+            // Draw map canvas
+            combinedCtx.drawImage(canvas, 0, 0);
+            
+            // Draw drawing canvas
+            combinedCtx.drawImage(drawCanvas, 0, 0);
+            
+            // Convert to image and download
+            combinedCanvas.toBlob(function(blob) {
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = 'gv-map-' + activeArea + '-' + new Date().getTime() + '.png';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 'image/png');
         }
         
         function switchLayer(newArea) {
