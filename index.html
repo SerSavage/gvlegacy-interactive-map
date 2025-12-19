@@ -342,38 +342,31 @@
         function drawZonesView() {
             if (!zonesImage || !zonesImage.complete) return;
             
-            // Get zones image dimensions
+            // Get zones image dimensions - use original size
             var imgWidth = zonesImage.width;
             var imgHeight = zonesImage.height;
             
-            // Set zones canvas to match image size (or scale to fit container)
+            // Set zones canvas to match original image size (no scaling)
+            zonesCanvas.width = imgWidth;
+            zonesCanvas.height = imgHeight;
+            
+            // Clear and draw zones image at original size
+            zonesCtx.clearRect(0, 0, zonesCanvas.width, zonesCanvas.height);
+            zonesCtx.drawImage(zonesImage, 0, 0);
+            
+            // Center zones canvas in container
             var container = document.getElementById('map-container');
             var containerWidth = container.clientWidth;
             var containerHeight = container.clientHeight;
-            
-            // Calculate scale to fit container while maintaining aspect ratio
-            var scaleX = containerWidth / imgWidth;
-            var scaleY = containerHeight / imgHeight;
-            var scale = Math.min(scaleX, scaleY, 1); // Don't scale up, only down if needed
-            
-            // Set canvas size to scaled image size
-            zonesCanvas.width = imgWidth * scale;
-            zonesCanvas.height = imgHeight * scale;
-            
-            // Clear and draw zones image
-            zonesCtx.clearRect(0, 0, zonesCanvas.width, zonesCanvas.height);
-            zonesCtx.drawImage(zonesImage, 0, 0, zonesCanvas.width, zonesCanvas.height);
-            
-            // Center zones canvas in container
             var canvasLeft = (containerWidth - zonesCanvas.width) / 2;
             var canvasTop = (containerHeight - zonesCanvas.height) / 2;
             zonesCanvas.style.left = canvasLeft + 'px';
             zonesCanvas.style.top = canvasTop + 'px';
             
-            console.log('Zones view drawn:', {
+            console.log('Zones view drawn at original size:', {
                 imageSize: imgWidth + 'x' + imgHeight,
                 canvasSize: zonesCanvas.width + 'x' + zonesCanvas.height,
-                scale: scale.toFixed(3)
+                position: canvasLeft.toFixed(0) + ', ' + canvasTop.toFixed(0)
             });
         }
         
